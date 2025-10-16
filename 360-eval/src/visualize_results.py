@@ -669,7 +669,7 @@ def create_visualizations(df, model_task_metrics, latency_metrics, cost_metrics)
             fails['error'] = fails['judge_explanation'].fillna("Unknown").replace("", "Unknown")
             # Extract error categories using regex
             fails['error_category'] = fails['error'].apply(
-                lambda x: '<br>'.join(list(set(re.findall(r'[A-Za-z-]+', str(x))))) if pd.notnull(x) else "Unknown"
+                lambda x: '<br>'.join(list(set(re.findall(r'[A-Za-z-]+', str(x.replace(" ", "-").replace("&", "and")))))) if pd.notnull(x) else "Unknown"
             )
 
             counts = fails.groupby(['model_name', 'task_types', 'error_category']).size().reset_index(name='count')
