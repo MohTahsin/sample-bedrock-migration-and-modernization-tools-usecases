@@ -91,7 +91,7 @@ def main():
             st.divider()
             
             # Navigation tabs in sidebar - include Unprocessed tab
-            tab_names = ["Setup", "Monitor", "Evaluations", "Unprocessed", "Reports"]
+            tab_names = ["Setup", "Monitor", "Evaluations", "Reports", "Unprocessed"]
 
             # Check if we need to navigate to Setup tab
             if "navigate_to_setup" in st.session_state and st.session_state.navigate_to_setup:

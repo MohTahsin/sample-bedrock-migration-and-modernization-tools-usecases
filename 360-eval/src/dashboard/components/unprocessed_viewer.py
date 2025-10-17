@@ -92,8 +92,15 @@ class UnprocessedRecordsViewer:
         # Display file summary table
         with st.expander(f"📊 File Summary ({len(file_info)} files)", expanded=True):
             file_df = pd.DataFrame(file_info)
+
+            # Strip UUID prefix from experiment names for display (UUID format: 8-4-4-4-12 hex characters)
+            import re
+            uuid_pattern = r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}_'
+            file_df['experiment'] = file_df['experiment'].apply(lambda x: re.sub(uuid_pattern, '', x))
+
+            # Select and rename columns (exclude filename)
+            file_df = file_df[['experiment', 'records', 'size_kb', 'modified']]
             file_df = file_df.rename(columns={
-                'filename': 'File',
                 'experiment': 'Experiment',
                 'records': 'Failed Records',
                 'size_kb': 'Size (KB)',

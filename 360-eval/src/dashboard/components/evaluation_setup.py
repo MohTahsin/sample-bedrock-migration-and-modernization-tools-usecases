@@ -66,7 +66,7 @@ class EvaluationSetupComponent:
                 )
             
             # Vision Model Configuration
-            st.subheader("Vision Model Configuration")
+            st.markdown("#### Vision Model Configuration")
             
             # Vision model checkbox
             vision_enabled = st.session_state.current_evaluation_config.get("vision_enabled", False)
@@ -91,66 +91,78 @@ class EvaluationSetupComponent:
                 )
 
             # Prompt Optimization Configuration
-            st.subheader("Prompt Optimization (Bedrock Models Only)")
+            st.markdown("#### Prompt Optimization (Bedrock Models Only)")
 
-            st.info("""
+            # Prompt optimization checkbox
+            prompt_opt_enabled = st.session_state.current_evaluation_config.get("prompt_optimization_enabled", False)
+            st.checkbox(
+                "Enable Prompt Optimization",
+                value=prompt_opt_enabled,
+                key="prompt_optimization_enabled",
+                on_change=self._update_prompt_optimization_enabled,
+                help="Enable AWS Bedrock prompt optimization to automatically improve your prompts for better model performance. Only works with supported Bedrock models and regions."
+            )
+
+            # Show optimization controls only if enabled
+            if st.session_state.current_evaluation_config.get("prompt_optimization_enabled", False):
+                st.info("""
 **Prompt Optimization** uses AWS Bedrock to automatically improve your prompts for better model performance.
 - ✅ Only works with supported Bedrock model families (Nova, Claude, Llama, etc.)
 - ✅ Only available in specific AWS regions (us-east-1, us-west-2, eu-west-1, etc.)
 - ⚠️ Unsupported models/regions will use original prompts (no failures)
-            """)
+                """)
 
-            # Get current mode with default
-            current_mode = st.session_state.current_evaluation_config.get("prompt_optimization_mode", "none")
+                # Get current mode with default
+                current_mode = st.session_state.current_evaluation_config.get("prompt_optimization_mode", "none")
 
-            # Define optimization options
-            optimization_options = {
-                "No Optimization": "none",
-                "Optimize and Evaluate": "optimize_only",
-                "Evaluate Both (Original + Optimized)": "evaluate_both"
-            }
+                # Define optimization options
+                optimization_options = {
+                    "No Optimization": "none",
+                    "Optimize and Evaluate": "optimize_only",
+                    "Evaluate Both (Original + Optimized)": "evaluate_both"
+                }
 
-            # Find current selection label
-            current_label = "No Optimization"
-            for label, value in optimization_options.items():
-                if value == current_mode:
-                    current_label = label
-                    break
+                # Find current selection label
+                current_label = "No Optimization"
+                for label, value in optimization_options.items():
+                    if value == current_mode:
+                        current_label = label
+                        break
 
-            # Radio button for optimization mode
-            selected_option = st.radio(
-                "Optimization Mode",
-                options=list(optimization_options.keys()),
-                index=list(optimization_options.keys()).index(current_label),
-                key="prompt_optimization_radio",
-                on_change=self._update_prompt_optimization,
-                help="""
+                # Radio button for optimization mode
+                selected_option = st.radio(
+                    "Optimization Mode",
+                    options=list(optimization_options.keys()),
+                    index=list(optimization_options.keys()).index(current_label),
+                    key="prompt_optimization_radio",
+                    on_change=self._update_prompt_optimization,
+                    help="""
 • No Optimization: Use prompts as-is (fastest, default)
 • Optimize and Evaluate: Replace prompts with AI-optimized versions
 • Evaluate Both: Test both original and optimized prompts side-by-side (adds "_Prompt_Optimized" suffix)
-                """
-            )
+                    """
+                )
 
-            # Show detailed supported models in expander
-            with st.expander("📋 Supported Model Families & Regions"):
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    st.markdown("""
+                # Show detailed supported models in expander
+                with st.expander("📋 Supported Model Families & Regions"):
+                    col_a, col_b = st.columns(2)
+                    with col_a:
+                        st.markdown("""
 **Supported Model Families:**
 - Amazon Nova (Lite, Micro, Pro, Premier)
 - Anthropic Claude 3.x, 3.5, 3.7, 4
 - DeepSeek R1, V3
 - Meta Llama 3.x, 4.x
 - Mistral Large, Mixtral
-                    """)
-                with col_b:
-                    st.markdown("""
+                        """)
+                    with col_b:
+                        st.markdown("""
 **Supported Regions:**
 - US: us-east-1, us-west-2
 - EU: eu-west-1, eu-west-2, eu-west-3, eu-central-1
 - AP: ap-south-1, ap-southeast-2
 - Other: ca-central-1, sa-east-1
-                    """)
+                        """)
 
             # Preview CSV data
             st.subheader("Data Preview")
@@ -293,6 +305,12 @@ class EvaluationSetupComponent:
     
     def _update_image_column(self):
         st.session_state.current_evaluation_config["image_column"] = st.session_state.image_column
+
+    def _update_prompt_optimization_enabled(self):
+        st.session_state.current_evaluation_config["prompt_optimization_enabled"] = st.session_state.prompt_optimization_enabled
+        # Reset optimization mode when disabled
+        if not st.session_state.prompt_optimization_enabled:
+            st.session_state.current_evaluation_config["prompt_optimization_mode"] = "none"
 
     def _update_prompt_optimization(self):
         """Update prompt optimization mode when radio button changes."""
