@@ -109,14 +109,59 @@ def parse_json_string(json_str):
         return {"error": str(e)}
 
 
+def get_evaluation_config_signature(df):
+    """
+    Create a unique signature for evaluation configuration.
+    Evaluations with matching signatures can be safely merged.
+
+    Returns:
+        tuple: Configuration components that define a unique evaluation
+    """
+    try:
+        # Extract unique values for each config component
+        models = tuple(sorted(df['model_id'].unique()))
+        task_criteria = tuple(sorted(df['task_criteria'].unique()))
+        task_types = tuple(sorted(df['task_types'].unique()))
+
+        # Extract judge models from performance_metrics column
+        judge_models = set()
+        for perf_metrics in df['performance_metrics'].dropna():
+            try:
+                parsed = parse_json_string(perf_metrics)
+                if isinstance(parsed, dict) and 'judge_details' in parsed:
+                    for judge in parsed['judge_details']:
+                        if 'model' in judge:
+                            judge_models.add(judge['model'])
+            except:
+                pass
+        judges = tuple(sorted(judge_models))
+
+        # User-defined metrics (if exists in data)
+        user_metrics = tuple(sorted(df['user_defined_metrics'].unique())) if 'user_defined_metrics' in df.columns else tuple()
+
+        # Temperature values
+        temperatures = tuple(sorted(df['TEMPERATURE'].unique())) if 'TEMPERATURE' in df.columns else tuple()
+
+        # Create signature tuple
+        config_sig = (models, task_criteria, task_types, judges, user_metrics, temperatures)
+
+        return config_sig
+    except Exception as e:
+        logger.warning(f"Error creating config signature: {e}")
+        # Return a random signature to keep this group separate
+        import uuid
+        return (str(uuid.uuid4()),)
+
+
 def load_data(directory, evaluation_names=None):
-    """Load and prepare benchmark data.
+    """Load and prepare benchmark data with proper configuration-based grouping.
+
+    Only merges evaluations with identical configurations (models, judges, criteria, etc.)
 
     Args:
         directory: Directory containing CSV files
         evaluation_names: Optional list of evaluation names to filter by
     """
-    # Ensure directory is a Path object
     directory = Path(directory)
     logger.info(f"Looking for CSV files in: {directory}")
 
@@ -131,7 +176,6 @@ def load_data(directory, evaluation_names=None):
         files = []
         for file_path in all_files:
             file_name = Path(file_path).name
-            # Check if any evaluation name is in the filename
             if any(eval_name in file_name for eval_name in evaluation_names):
                 files.append(file_path)
 
@@ -140,29 +184,71 @@ def load_data(directory, evaluation_names=None):
             logger.info(f"Available files: {[Path(f).name for f in all_files]}")
             raise FileNotFoundError(f"No CSV files found for evaluations: {evaluation_names}")
 
-        logger.info(f"Filtered to {len(files)} CSV files matching evaluations {evaluation_names}: {[Path(f).name for f in files]}")
+        logger.info(f"Filtered to {len(files)} CSV files matching evaluations {evaluation_names}")
     else:
         files = all_files
-        logger.info(f"Found {len(files)} CSV files (no filter applied): {[Path(f).name for f in files]}")
+        logger.info(f"Found {len(files)} CSV files (no filter applied)")
 
-    dataframes = []
+    # Step 1: Load all files and group by configuration signature
+    config_groups = {}
+    file_metadata = {}
 
     for f in files:
         try:
             logger.info(f"Reading file: {f}")
             df_file = pd.read_csv(f)
             logger.info(f"Read {len(df_file)} rows from {f}")
-            dataframes.append(df_file)
+
+            # Add source file tracking
+            df_file['source_file'] = Path(f).name
+
+            # Get configuration signature for this file
+            config_sig = get_evaluation_config_signature(df_file)
+
+            # Group files by config signature
+            if config_sig not in config_groups:
+                config_groups[config_sig] = []
+                file_metadata[config_sig] = {
+                    'files': [],
+                    'task_type': df_file['task_types'].iloc[0] if not df_file.empty else 'Unknown',
+                    'total_records': 0
+                }
+
+            config_groups[config_sig].append(df_file)
+            file_metadata[config_sig]['files'].append(Path(f).name)
+            file_metadata[config_sig]['total_records'] += len(df_file)
+
         except Exception as e:
             logger.error(f"Error reading {f}: {str(e)}")
             continue
 
-    if not dataframes:
+    if not config_groups:
         logger.error("No valid data found in any CSV files")
         raise ValueError("No valid data found in any CSV files")
 
-    df = pd.concat(dataframes, ignore_index=True)
-    logger.info(f"Combined data has {len(df)} rows")
+    # Step 2: Log configuration grouping information
+    logger.info(f"Found {len(config_groups)} unique evaluation configurations")
+    for i, (config_sig, metadata) in enumerate(file_metadata.items(), 1):
+        logger.info(f"  Config {i}: task_type='{metadata['task_type']}', "
+                   f"files={len(metadata['files'])}, records={metadata['total_records']}")
+        for fname in metadata['files']:
+            logger.info(f"    - {fname}")
+
+    # Step 3: Merge ONLY within same configuration groups
+    merged_dfs = []
+    for config_sig, dfs_in_group in config_groups.items():
+        # These all have matching configs, safe to merge
+        merged_df = pd.concat(dfs_in_group, ignore_index=True)
+
+        # Add config signature as a column for later grouping
+        merged_df['config_signature'] = str(hash(config_sig))
+
+        merged_dfs.append(merged_df)
+        logger.info(f"Merged {len(dfs_in_group)} files with matching config into {len(merged_df)} records")
+
+    # Step 4: Combine all config groups
+    df = pd.concat(merged_dfs, ignore_index=True)
+    logger.info(f"Combined data has {len(df)} total rows across {len(config_groups)} unique configurations")
 
     # Clean and prepare data (optimized with method chaining)
     df = (df[df['api_call_status'] == 'Success']
@@ -214,9 +300,12 @@ def load_data(directory, evaluation_names=None):
 
 
 def calculate_metrics_by_model_task(df):
-    """Calculate detailed metrics for each model-task combination."""
-    # Group by model and task
-    metrics = df.groupby(['model_name', 'task_types']).agg({
+    """Calculate detailed metrics for each model-task-config combination.
+
+    Properly handles cases where same task name has different configurations.
+    """
+    # Group by model, task, AND config signature
+    metrics = df.groupby(['model_name', 'task_types', 'config_signature']).agg({
         'task_success': ['mean', 'count'],
         'time_to_first_byte': ['mean', 'min', 'max'],
         'time_to_last_byte': ['mean', 'min', 'max'],
@@ -241,30 +330,60 @@ def calculate_metrics_by_model_task(df):
         'input_tokens_mean': 'avg_input_tokens'
     })
 
+    metrics = metrics.reset_index()
+
+    # Add task_display_name column with disambiguation
+    # Count how many unique config_signatures exist for each task_type
+    task_config_counts = metrics.groupby('task_types')['config_signature'].nunique()
+
+    def generate_task_display_name(row):
+        """Generate display name with numeric suffix if multiple configs exist."""
+        task = row['task_types']
+        if task_config_counts.get(task, 1) > 1:
+            # Multiple configurations exist - need disambiguation
+            # Get all configs for this task, sort them, and find index
+            configs_for_task = sorted(metrics[metrics['task_types'] == task]['config_signature'].unique())
+            config_index = configs_for_task.index(row['config_signature']) + 1
+            return f"{task} ({config_index})"
+        else:
+            # Single configuration - use original name
+            return task
+
+    metrics['task_display_name'] = metrics.apply(generate_task_display_name, axis=1)
+    logger.info(f"Generated task display names with disambiguation for {len(metrics)} metric rows")
+
     max_raw_ratio = metrics['success_rate'].max() / (metrics['avg_cost'].min() + EPSILON_DIVISION)
     metrics['value_ratio'] = VALUE_RATIO_MULTIPLIER * (metrics['success_rate'] / (metrics['avg_cost'] + EPSILON_DIVISION)) / max_raw_ratio
 
-    return metrics.reset_index()
+    return metrics
 
 
 def calculate_metrics_by_model_task_temperature(df):
-    """Calculate detailed metrics for each model-task-temperature combination.
+    """Calculate detailed metrics for each model-task-temperature-config combination.
 
-    This function groups data by model, task, and temperature to enable
-    temperature-based performance analysis.
+    This function groups data by model, task, temperature, and config signature to enable
+    temperature-based performance analysis while respecting configuration boundaries.
 
     Args:
         df: DataFrame with model evaluation data including TEMPERATURE column
 
     Returns:
-        DataFrame with metrics grouped by model_name, task_types, and TEMPERATURE
+        DataFrame with metrics grouped by model_name, task_types, TEMPERATURE, and config_signature
     """
     # Check if TEMPERATURE column exists
     if 'TEMPERATURE' not in df.columns:
         return None
 
-    # Group by model, task, and temperature
-    metrics = df.groupby(['model_name', 'task_types', 'TEMPERATURE']).agg({
+    # Check if config_signature exists (should be added by load_data)
+    if 'config_signature' not in df.columns:
+        logger.warning("config_signature column not found in dataframe, temperature metrics may be incorrectly aggregated")
+        # Fall back to grouping without config_signature
+        groupby_cols = ['model_name', 'task_types', 'TEMPERATURE']
+    else:
+        groupby_cols = ['model_name', 'task_types', 'config_signature', 'TEMPERATURE']
+
+    # Group by model, task, config, and temperature
+    metrics = df.groupby(groupby_cols).agg({
         'task_success': ['mean', 'count'],
         'time_to_first_byte': ['mean', 'min', 'max'],
         'time_to_last_byte': ['mean', 'min', 'max'],
@@ -289,7 +408,28 @@ def calculate_metrics_by_model_task_temperature(df):
         'input_tokens_mean': 'avg_input_tokens'
     })
 
-    return metrics.reset_index()
+    metrics = metrics.reset_index()
+
+    # Add task_display_name if config_signature exists
+    if 'config_signature' in metrics.columns:
+        task_config_counts = metrics.groupby('task_types')['config_signature'].nunique()
+
+        def generate_task_display_name(row):
+            """Generate display name with numeric suffix if multiple configs exist."""
+            task = row['task_types']
+            if task_config_counts.get(task, 1) > 1:
+                # Multiple configurations exist - need disambiguation
+                configs_for_task = sorted(metrics[metrics['task_types'] == task]['config_signature'].unique())
+                config_index = configs_for_task.index(row['config_signature']) + 1
+                return f"{task} ({config_index})"
+            else:
+                # Single configuration - use original name
+                return task
+
+        metrics['task_display_name'] = metrics.apply(generate_task_display_name, axis=1)
+        logger.info(f"Generated task display names for temperature metrics: {len(metrics)} rows")
+
+    return metrics
 
 
 def calculate_latency_metrics(df):
@@ -585,12 +725,12 @@ def create_visualizations(df, model_task_metrics, latency_metrics, cost_metrics)
     visualizations['cost_comparison'] = cost_fig
 
     # 5. Task-Model Success Rate Heatmap
-    # Pivot to create model vs task matrix
+    # Pivot to create model vs task matrix (use task_display_name for proper disambiguation)
     pivot_success = pd.pivot_table(
         model_task_metrics,
         values='success_rate',
         index='model_name',
-        columns='task_types',
+        columns='task_display_name',  # Use task_display_name instead of task_types
         aggfunc='mean'
     ).infer_objects(copy=False).fillna(0)
 
@@ -621,14 +761,15 @@ def create_visualizations(df, model_task_metrics, latency_metrics, cost_metrics)
         y='success_rate',
         size='avg_otps',
         color='avg_cost',
-        facet_col='task_types',
+        facet_col='task_display_name',  # Use task_display_name instead of task_types
         facet_col_wrap=3,
         hover_data=['model_name', 'value_ratio'],
         labels={
             'avg_latency': 'Latency (Secs)',
             'success_rate': 'Success Rate',
             'avg_cost': 'Cost (USD)',
-            'avg_otps': 'Tokens/sec'
+            'avg_otps': 'Tokens/sec',
+            'task_display_name': 'Task Type'  # Add label for task_display_name
         },
         title='Model Performance by Task Type',
         color_continuous_scale='Earth',  # Use a brighter color scale
@@ -828,10 +969,11 @@ def create_visualizations(df, model_task_metrics, latency_metrics, cost_metrics)
     temp_metrics = calculate_metrics_by_model_task_temperature(df)
     has_temperature_data = temp_metrics is not None and not temp_metrics.empty
 
-    for task in df['task_types'].unique():
+    # Loop through unique task_display_name to handle multiple configs per task type
+    for task_display in model_task_metrics['task_display_name'].unique():
         if has_temperature_data:
             # Use temperature-based grouped bar charts
-            task_temp_data = temp_metrics[temp_metrics['task_types'] == task]
+            task_temp_data = temp_metrics[temp_metrics['task_display_name'] == task_display]
 
             if not task_temp_data.empty:
                 # Create subplot with 2x2 grid
@@ -937,7 +1079,7 @@ def create_visualizations(df, model_task_metrics, latency_metrics, cost_metrics)
 
                 fig.update_layout(
                     height=800,
-                    title_text=f"Performance Metrics for {task} (Grouped by Temperature)",
+                    title_text=f"Performance Metrics for {task_display} (Grouped by Temperature)",
                     barmode='group',
                     template="plotly_dark",
                     paper_bgcolor="#1e1e1e",
@@ -952,10 +1094,10 @@ def create_visualizations(df, model_task_metrics, latency_metrics, cost_metrics)
                     )
                 )
 
-                task_charts[task] = fig
+                task_charts[task_display] = fig
         else:
             # Fallback to simple bar charts if no temperature data
-            task_data = model_task_metrics[model_task_metrics['task_types'] == task]
+            task_data = model_task_metrics[model_task_metrics['task_display_name'] == task_display]
 
             if not task_data.empty:
                 # Create subplot with 2x2 grid
@@ -993,14 +1135,14 @@ def create_visualizations(df, model_task_metrics, latency_metrics, cost_metrics)
 
                 fig.update_layout(
                     height=725,
-                    title_text=f"Performance Metrics for {task}",
+                    title_text=f"Performance Metrics for {task_display}",
                     showlegend=False,
                     template="plotly_dark",
                     paper_bgcolor="#1e1e1e",
                     plot_bgcolor="#2d2d2d",
                 )
 
-                task_charts[task] = fig
+                task_charts[task_display] = fig
 
     visualizations['task_charts'] = task_charts
     visualizations['integrated_analysis_tables'], analysis_df = create_integrated_analysis_table(model_task_metrics)
@@ -1022,11 +1164,12 @@ def create_visualizations(df, model_task_metrics, latency_metrics, cost_metrics)
 
 
 def generate_task_findings(df, model_task_metrics):
-    """Generate key findings for each task type."""
+    """Generate key findings for each task configuration (using task_display_name)."""
     task_findings = {}
 
-    for task in df['task_types'].unique():
-        task_data = model_task_metrics[model_task_metrics['task_types'] == task]
+    # Loop through unique task_display_name to handle multiple configs
+    for task_display in model_task_metrics['task_display_name'].unique():
+        task_data = model_task_metrics[model_task_metrics['task_display_name'] == task_display]
         findings = []
 
         if not task_data.empty:
@@ -1057,8 +1200,15 @@ def generate_task_findings(df, model_task_metrics):
             avg_success = task_data['success_rate'].mean()
             findings.append(f"Average success rate for this task was {avg_success:.1%}")
 
-            # Error analysis
-            fails = df[(df['task_types'] == task) & (df['task_success'] == False)]
+            # Error analysis - filter by both task_types and config_signature
+            task_types = task_data['task_types'].iloc[0]
+            config_sig = task_data['config_signature'].iloc[0] if 'config_signature' in task_data.columns else None
+
+            if config_sig:
+                fails = df[(df['task_types'] == task_types) & (df['config_signature'] == config_sig) & (df['task_success'] == False)]
+            else:
+                fails = df[(df['task_types'] == task_types) & (df['task_success'] == False)]
+
             if not fails.empty and 'judge_explanation' in fails.columns:
                 # Extract common error patterns
                 error_patterns = []
@@ -1070,17 +1220,18 @@ def generate_task_findings(df, model_task_metrics):
                     errors_text = ", ".join([f"{err[0]} ({err[1]} occurrences)" for err in common_errors])
                     findings.append(f"Most common errors: {errors_text}")
 
-        task_findings[task] = findings
+        task_findings[task_display] = findings
 
     return task_findings
 
 
 def generate_task_recommendations(model_task_metrics):
-    """Generate task-specific model recommendations."""
+    """Generate task-specific model recommendations (using task_display_name)."""
     recommendations = []
 
-    for task in model_task_metrics['task_types'].unique():
-        task_data = model_task_metrics[model_task_metrics['task_types'] == task]
+    # Loop through unique task_display_name to handle multiple configs
+    for task_display in model_task_metrics['task_display_name'].unique():
+        task_data = model_task_metrics[model_task_metrics['task_display_name'] == task_display]
 
         if not task_data.empty:
             # Find best models by different metrics
@@ -1093,9 +1244,9 @@ def generate_task_recommendations(model_task_metrics):
             best_value = task_data['value_ratio'].max()
             best_value_model = '<br>'.join(task_data[task_data['value_ratio'] == best_value]['model_name'].tolist())
 
-            # Create recommendation entry
+            # Create recommendation entry (use task_display for display)
             recommendations.append({
-                'task': task,
+                'task': task_display,
                 'best_accuracy_model': best_acc_model,
                 'accuracy': f"{best_suc:.1%}",
                 'best_speed_model': best_speed_model,
@@ -1470,10 +1621,10 @@ def create_integrated_analysis_table(model_task_metrics):
             else:
                 return colors['poor']
 
-    # Loop through each unique task and create a table for each
-    for task in table_data['task_types'].unique():
+    # Loop through each unique task_display_name and create a table for each
+    for task_display in table_data['task_display_name'].unique():
         # Filter data for this task
-        task_data = table_data[table_data['task_types'] == task].copy()
+        task_data = table_data[table_data['task_display_name'] == task_display].copy()
 
         # Create figure
         fig = go.Figure()
@@ -1489,7 +1640,7 @@ def create_integrated_analysis_table(model_task_metrics):
             cells=dict(
                 values=[
                     task_data['model_name'],
-                    task_data['task_types'],
+                    task_data['task_display_name'],  # Use task_display_name for display
                     task_data['success_rate_fmt'],
                     task_data['avg_latency_fmt'],
                     task_data['avg_cost_fmt'],
@@ -1542,8 +1693,8 @@ def create_integrated_analysis_table(model_task_metrics):
             height=total_height
         )
 
-        # Store the table for this task
-        task_tables[task] = fig
+        # Store the table for this task (using task_display_name as key)
+        task_tables[task_display] = fig
 
     # Return dictionary of tables for dropdown display
     return task_tables, model_task_metrics.to_dict(orient='records')
