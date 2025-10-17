@@ -356,7 +356,7 @@ class EvaluationSetupComponent:
                 "Invocations per Scenario",
                 min_value=1,
                 max_value=20,
-                value=st.session_state.current_evaluation_config["invocations_per_scenario"],
+                # value=st.session_state.current_evaluation_config["invocations_per_scenario"],
                 key="adv_invocations_per_scenario",
                 on_change=self._update_invocations_per_scenario_adv,
                 help="How many times to run each test scenario. More invocations = more reliable results but longer execution time. Use 3-5 for production testing."
@@ -367,7 +367,7 @@ class EvaluationSetupComponent:
                 "Pass|Failure Threshold",
                 min_value=2,
                 max_value=4,
-                value=st.session_state.current_evaluation_config["failure_threshold"],
+                # value=st.session_state.current_evaluation_config["failure_threshold"],
                 key="adv_failure_threshold",
                 on_change=self._update_failure_threshold_adv,
                 help="Value used to define whether an evaluation failed to meet standards, any evaluation metric below this number will be considered failure."
@@ -379,29 +379,29 @@ class EvaluationSetupComponent:
                 "Sleep Between Invocations (seconds)",
                 min_value=0,
                 max_value=300,
-                value=st.session_state.current_evaluation_config["sleep_between_invocations"],
+                # value=st.session_state.current_evaluation_config["sleep_between_invocations"],
                 key="adv_sleep_between_invocations",
                 on_change=self._update_sleep_between_invocations_adv,
                 help="Pause time between API calls to avoid rate limits. Use 60-120 seconds for production APIs, 0-30 for testing. Higher values = slower but more reliable."
             )
-            
+
             # Experiment counts
             st.number_input(
                 "Experiment Counts",
                 min_value=1,
                 max_value=10,
-                value=st.session_state.current_evaluation_config["experiment_counts"],
+                # value=st.session_state.current_evaluation_config["experiment_counts"],
                 key="adv_experiment_counts",
                 on_change=self._update_experiment_counts_adv,
                 help="Number of complete experiment runs to perform. Each run tests all scenarios. More runs = better statistical confidence. Use 1 for quick testing, 3-5 for production."
             )
-            
+
             # Temperature variations
             st.number_input(
                 "Temperature Variations",
                 min_value=0,
                 max_value=5,
-                value=st.session_state.current_evaluation_config["temperature_variations"],
+                # value=st.session_state.current_evaluation_config["temperature_variations"],
                 key="adv_temperature_variations",
                 on_change=self._update_temperature_variations_adv,
                 help="Test different creativity levels automatically. 0 = use exact temperature set per task, 1+ = test additional temperature variants (above and below delta). Use 0 for precise control, 2-3 for comprehensive testing."
