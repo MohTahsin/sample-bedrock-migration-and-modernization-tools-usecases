@@ -19,7 +19,7 @@ python -m streamlit run src/streamlit_dashboard.py
 
 The dashboard will be available at `http://localhost:8501`
 
-<img src="/migrations/360-eval/assets/main_ui.png" alt="Alt Text" width="700" height="300">
+<img src="/360-eval/assets/main_ui.png" alt="Alt Text" width="700" height="300">
 
 *Main dashboard interface showing the 4-tab navigation structure*
 
@@ -35,7 +35,7 @@ To stop the dashboard:
 #### 1.1 Navigate to Setup Tab
 The Setup tab contains three sub-tabs:
 
-<img src="/migrations/360-eval/assets/model_config.png" alt="Alt Text" width="700" height="300">
+<img src="/360-eval/assets/model_config.png" alt="Alt Text" width="700" height="300">
 
 *Setup tab showing the three configuration sub-tabs: Evaluation Setup, Model Configuration, and Advanced Configuration*
 
@@ -56,7 +56,7 @@ The Setup tab contains three sub-tabs:
      "Explain machine learning","Machine learning is..."
      ```
 
-<img src="/migrations/360-eval/assets/csv_labeling.png" alt="Alt Text" width="700" height="300">
+<img src="/360-eval/assets/csv_labeling.png" alt="Alt Text" width="700" height="300">
 
 *CSV file upload interface with column selection dropdowns*
 
@@ -83,7 +83,7 @@ The Setup tab contains three sub-tabs:
 - Task 1: Question-Answering, Temperature 0.3, Focus on factual accuracy
 - Task 2: Creative Writing, Temperature 0.8, Focus on engagement and creativity
 
-<img src="/migrations/360-eval/assets/task_def.png" alt="Alt Text" width="700" height="300">
+<img src="/360-eval/assets/task_def.png" alt="Alt Text" width="700" height="300">
 
 *Multiple task evaluation setup showing task type, criteria, temperature, and custom metrics*
 
@@ -93,7 +93,7 @@ The Setup tab contains three sub-tabs:
    - Configure regions and inference profiles
    - Set cost parameters for each model
 
-<img src="/migrations/360-eval/assets/model_config.png" alt="Alt Text" width="700" height="300">
+<img src="/360-eval/assets/model_config.png" alt="Alt Text" width="700" height="300">
 
 *Model configuration interface showing region selector, model dropdown, and cost settings*
 
@@ -120,7 +120,7 @@ Fine-tune execution parameters:
 - **Temperature Variations**: Test additional temperature settings automatically (range: 0-5)
 - **Experiment Wait Time**: Time between experiment runs (dropdown: 0 minutes to 3 hours)
 
-<img src="/migrations/360-eval/assets/advance_config.png" alt="Alt Text" width="700" height="300">
+<img src="/360-eval/assets/advance_config.png" alt="Alt Text" width="700" height="300">
 
 *Advanced configuration tab showing all parameter controls with ranges and help text*
 
@@ -138,7 +138,7 @@ When you run an evaluation, the system will first check access to all selected m
 #### 2.1 Navigate to Monitor Tab
 The Monitor tab shows "Processing Evaluations" and execution controls.
 
-<img src="/migrations/360-eval/assets/monitor.png" alt="Alt Text" width="700" height="400">
+<img src="/360-eval/assets/monitor.png" alt="Alt Text" width="700" height="400">
 
 *Monitor tab showing status, evaluation table, and execution controls*
 
@@ -176,7 +176,7 @@ View all completed evaluations with detailed information.
 - **Successful**: Only completed evaluations
 - **Failed**: Only failed evaluations
 
-<img src="/migrations/360-eval/assets/evaluations.png" alt="Alt Text" width="700" height="400">
+<img src="/360-eval/assets/evaluations.png" alt="Alt Text" width="700" height="400">
 
 *Evaluations tab showing filter buttons and completed evaluations list*
 
@@ -229,7 +229,7 @@ For HTML reports to be generated, you must have access to the `us.amazon.nova-pr
    - Success rate matrices
    - Error categorization and analysis
 
-<img src="/migrations/360-eval/assets/report.png" alt="Alt Text" width="700" height="400">
+<img src="/360-eval/assets/report.png" alt="Alt Text" width="700" height="400">
 
 *Reports tab showing evaluation selector and HTML report viewer*
 
