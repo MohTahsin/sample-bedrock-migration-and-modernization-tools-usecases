@@ -913,7 +913,26 @@ def sync_evaluations_from_files():
                     for i, e in enumerate(st.session_state.evaluations):
                         if e["id"] == eval_id:
                             st.session_state.evaluations[i][key] = status_data[key]
-            
+
+            # Load models and judges from status file
+            for i, e in enumerate(st.session_state.evaluations):
+                if e["id"] == eval_id:
+                    if "models_data" in status_data and status_data["models_data"]:
+                        st.session_state.evaluations[i]["selected_models"] = status_data["models_data"]
+                        dashboard_logger.debug(f"Loaded {len(status_data['models_data'])} models from status file for evaluation {eval_id}")
+
+                    if "judges_data" in status_data and status_data["judges_data"]:
+                        st.session_state.evaluations[i]["judge_models"] = status_data["judges_data"]
+                        dashboard_logger.debug(f"Loaded {len(status_data['judges_data'])} judges from status file for evaluation {eval_id}")
+
+                    # Also load evaluation config parameters if they exist
+                    if "evaluation_config" in status_data:
+                        config = status_data["evaluation_config"]
+                        for config_key in config:
+                            if config[config_key] is not None:
+                                st.session_state.evaluations[i][config_key] = config[config_key]
+                    break
+
             # Update results if available
             if "results" in status_data and status_data["results"]:
                 dashboard_logger.info(f"Results found for evaluation {eval_id}: {status_data['results']}")
