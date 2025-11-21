@@ -1,0 +1,58 @@
+{
+  "policies": {
+    "BedrockOptimizePromptPolicy": {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": [
+            "bedrock:OptimizePrompt",
+            "bedrock:CreatePrompt",
+            "bedrock:ListPrompts"
+          ],
+          "Resource": "*"
+        }
+      ]
+    },
+    "SageMakerLaunchVSCodeSessionPolicy": {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": [
+            "sagemaker:StartSession"
+          ],
+          "Resource": [
+            "arn:aws:sagemaker:us-east-1:*:*"
+          ]
+        }
+      ]
+    },
+    "SageMakerMLFlowFullAccessPolicy": {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": "sagemaker-mlflow:*",
+          "Resource": "*"
+        }
+      ]
+    },
+    "BedrockFoundationModelsPolicy": {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Sid": "AllowSpecificFoundationModels",
+          "Effect": "Allow",
+          "Action": [
+            "bedrock:InvokeModel"
+          ],
+          "Resource": [
+            "arn:aws:bedrock:us-east-1::foundation-model/*",
+            "arn:aws:bedrock:us-east-1:*:inference-profile/*"
+          ]
+        }
+      ]
+    }
+  }
+}

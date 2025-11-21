@@ -1,0 +1,16 @@
+# Project config
+pyproject.toml
+uv.lock
+.python-version
+.DS_Store
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/
+
+# Python checkpoints / cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyc.*
