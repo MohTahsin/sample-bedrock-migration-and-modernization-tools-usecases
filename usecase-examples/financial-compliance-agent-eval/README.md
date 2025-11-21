@@ -1,0 +1,276 @@
+# Financial Compliance AI Agent Pipeline
+
+An end-to-end pipeline for **optimizing and evaluating AI agents** for financial compliance Q&A using **Amazon Bedrock**, **Amazon SageMaker**, **MLflow**, and **Haystack**.
+
+This project takes you from **local experimentation** to a **production-ready agent evaluation pipeline**, with robust metrics and repeatable workflows.
+
+---
+
+## Overview
+
+This project demonstrates a complete workflow for:
+
+1. **Prompt Optimization**  
+   Use Bedrock Prompt Management + Prompt Optimization APIs to iteratively refine prompts.
+
+2. **Local Development**  
+   Build and test a hybrid RAG + Web Search agent locally using Haystack and Chroma.
+
+3. **Scalable Evaluation**  
+   Run large-scale, reproducible evaluations using SageMaker Pipelines with MLflow tracking.
+
+4. **Performance Benchmarking**  
+   Compare prompts and models using semantic, retrieval, and factuality metrics.
+
+---
+
+## Architecture
+
+The pipeline integrates:
+
+- **Amazon Bedrock**  
+  Foundation models + Prompt Management + Prompt Optimization  
+- **Haystack**  
+  Agent with `rag` + `web_search` tools, Chroma vector DB, RAG pipeline  
+- **SageMaker Pipelines**  
+  Orchestration for data prep, inference, and evaluation  
+- **MLflow**  
+  Central tracking for metrics, parameters, prompts, models, and artifacts
+
+### Visuals
+
+**SageMaker Pipeline**  
+![Pipeline](images/pipe.png)
+
+**MLflow**  
+![MLflow](images/mlflow.png)
+
+**Architecture Diagram**  
+![Architecture](images/mrmd.png)
+
+---
+
+## Project Structure
+
+```text
+├── sm_mlflow_pipe/
+│   ├── sm_pipe.ipynb           # SageMaker pipeline orchestration
+│   ├── config.yaml             # Pipeline config
+│   ├── requirements.txt        # Dependencies
+│   └── src/
+│       ├── optimizer.py
+│       ├── classify.py
+│       ├── evaluate.py
+│       ├── prompt_manager.py
+│       └── data_prep.py
+├── local_pipe/
+│   └── pipe.ipynb              # Local agent + evaluation notebook
+├── haystack/
+│   └── haystack_intro.ipynb    # Intro to Haystack
+└── data/
+    ├── AMZN-2023-10k.pdf
+    ├── ground_truth.json
+    └── create_test_dataset.py
+```
+
+---
+## Quick Start
+
+### Prerequisites
+
+AWS account with Bedrock, SageMaker, and S3 access
+
+Python 3.8+
+
+AWS CLI configured
+
+SageMaker Studio domain with execution role
+
+
+#### 1. IAM Setup
+
+Copy the JSON under iam_roles/sagemaker_iam_policies.json and attach it as an inline policy on your SageMaker execution role.
+
+
+#### 2. Learn Core Components
+
+Run:
+
+haystack/haystack_intro.ipynb
+
+
+#### 3. Local Agent Evaluation
+
+Run:
+
+local_pipe/pipe.ipynb
+
+
+This notebook:
+
+Builds a Chroma vector store over the Amazon 10-K
+
+Creates an agent with rag + web_search tools
+
+Applies rules:
+
+Use RAG for 2023 and earlier
+
+Use Web Search for 2024+ / current
+
+Evaluates the agent against ground_truth.json
+
+Computes semantic similarity, tool selection accuracy, factuality, and retrieval quality
+
+
+#### 4. Scalable Production Pipeline
+
+Run:
+
+sm_mlflow_pipe/sm_pipe.ipynb
+
+
+This notebook:
+
+Orchestrates data prep → inference → evaluation
+
+Uses SageMaker Remote Functions for scale
+
+Logs metrics + artifacts to MLflow
+
+---
+## Evaluation Metrics
+
+The pipeline evaluates models using four complementary metrics, giving a realistic and multidimensional view of agent quality.
+
+### 1. Semantic Answer Similarity (SAS)
+
+Measures how close the agent’s answer is in meaning to the ground truth, not in exact wording.
+Useful because LLMs often paraphrase valid answers.
+
+### 2. Tool Selection Accuracy
+
+Measures whether the agent used the correct tool (rag vs web_search) according to the expected label.
+
+This ensures:
+
+Historical questions use RAG
+
+Current questions use Web Search
+
+Agents follow governance rules and cost boundaries
+
+### 3. LLM-As-A-Judge Factuality Score
+
+A separate LLM evaluates whether the answer is factually supported by the provided context.
+
+This detects:
+
+Hallucinations
+
+Unsupported claims
+
+Incorrect interpretations
+
+Scores are simple:
+
+1 → supported
+
+0 → unsupported
+
+### 4. RAG Retrieval Quality (nDCG)
+
+Measures how well the retriever ranks the most relevant chunks from the 10-K.
+
+nDCG is a ranking metric:
+
+1.0 → perfect ranking
+
+0.0 → worst ranking
+
+This isolates retriever performance from LLM performance.
+
+---
+## Workflow Summary
+
+### 1. Prompt Optimization
+
+Start with a base prompt in Bedrock Prompt Management
+
+Optimize using Bedrock’s Prompt Optimization API
+
+Track versions for comparison
+
+### 2. Local Evaluation
+
+Run RAG + Web Search agent locally
+
+Evaluate with SAS, factuality, tool accuracy, and nDCG
+
+Identify failure patterns early
+
+### 3. SageMaker Pipeline
+
+Moves local evaluation to scalable infrastructure
+
+Includes:
+
+data-preparation
+
+run-inference
+
+evaluate-predictions
+
+Logs metrics to MLflow for comparison across models and prompts
+
+### 4. Optional Conditional Promotion
+
+Only save a prompt/model if thresholds (e.g., accuracy or factuality) are met.
+
+---
+## Troubleshooting
+
+Bedrock Permissions
+
+aws bedrock-agent get-prompt --prompt-identifier <id>
+
+
+Model Access
+
+aws bedrock list-foundation-models
+
+
+MLflow Connectivity
+
+mlflow ui
+
+
+SageMaker Role Issues
+
+aws iam get-role --role-name <role>
+
+---
+
+## Contributing
+
+Fork the repo
+
+Create a feature branch
+
+Add tests or docs
+
+Submit a PR
+
+## License
+
+Apache License — see LICENSE
+
+## Support
+
+Create an issue
+
+Reference Bedrock docs
+
+Reference SageMaker Pipelines guide
+
+Reference MLflow documentation
