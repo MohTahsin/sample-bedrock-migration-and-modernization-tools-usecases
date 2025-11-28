@@ -37,7 +37,7 @@ The pipeline integrates:
 ### Visuals
 
 **SageMaker Pipeline**  
-![Pipeline](images/pipe.png)
+![Pipeline](images/4-pipeline-dag.png)
 
 **MLflow**  
 ![MLflow](images/mlflow.png)
