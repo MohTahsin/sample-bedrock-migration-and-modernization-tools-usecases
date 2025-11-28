@@ -54,23 +54,22 @@ The pipeline integrates:
 
 ```text
 ├── sm_mlflow_pipe/
-│   ├── sm_pipe.ipynb           # SageMaker pipeline orchestration
-│   ├── config.yaml             # Pipeline config
-│   ├── requirements.txt        # Dependencies
-│   └── src/
-│       ├── optimizer.py
-│       ├── classify.py
-│       ├── evaluate.py
-│       ├── prompt_manager.py
-│       └── data_prep.py
+│   ├── sm_pipe.ipynb                # SageMaker pipeline orchestration
+│   ├── requirements.txt             # Dependencies
 ├── local_pipe/
-│   └── pipe.ipynb              # Local agent + evaluation notebook
-├── haystack/
-│   └── haystack_intro.ipynb    # Intro to Haystack
+│   └── pipe.ipynb                   # Local agent + evaluation notebook
+│   └── chat_message_printer.py      # Pretty print chat messages 
+├── haystack-intro/
+│   └── haystack_intro.ipynb         # Intro to Haystack
+│   └── requirements-sagemaker.txt   # Sagemaker requirements
+│   └── requirements.txt             # other notebook requirements
 └── data/
-    ├── AMZN-2023-10k.pdf
-    ├── ground_truth.json
-    └── create_test_dataset.py
+    ├── AMZN-2023-10k.pdf            # PDF data for RAG
+    ├── ground_truth.json            # Ground truth for Agent inference 
+    └── create_test_dataset.py       # Script for creating test dataset 
+    └── 10k-vec-db                   # Precreated ChromaDB
+└── iam_roles/
+    ├── sagemaker_iam_policies.json  # IAM Sagemaker permission policies
 ```
 
 ---
@@ -91,7 +90,6 @@ SageMaker Studio domain with execution role
 
 Copy the JSON under iam_roles/sagemaker_iam_policies.json and attach it as an inline policy on your SageMaker execution role.
 
-
 #### 2. Learn Core Components
 
 Run:
@@ -104,7 +102,6 @@ haystack/haystack_intro.ipynb
 Run:
 
 local_pipe/pipe.ipynb
-
 
 This notebook:
 
@@ -120,15 +117,13 @@ Use Web Search for 2024+ / current
 
 Evaluates the agent against ground_truth.json
 
-Computes semantic similarity, tool selection accuracy, factuality, and retrieval quality
-
+Computes semantic similarity, tool selection accuracy, and factuality.
 
 #### 4. Scalable Production Pipeline
 
 Run:
 
 sm_mlflow_pipe/sm_pipe.ipynb
-
 
 This notebook:
 
@@ -178,18 +173,6 @@ Scores are simple:
 
 0 → unsupported
 
-### 4. RAG Retrieval Quality (nDCG)
-
-Measures how well the retriever ranks the most relevant chunks from the 10-K.
-
-nDCG is a ranking metric:
-
-1.0 → perfect ranking
-
-0.0 → worst ranking
-
-This isolates retriever performance from LLM performance.
-
 ---
 ## Workflow Summary
 
@@ -205,7 +188,7 @@ Track versions for comparison
 
 Run RAG + Web Search agent locally
 
-Evaluate with SAS, factuality, tool accuracy, and nDCG
+Evaluate with SAS, factuality, and tool accuracy
 
 Identify failure patterns early
 
@@ -234,7 +217,6 @@ Bedrock Permissions
 
 aws bedrock-agent get-prompt --prompt-identifier <id>
 
-
 Model Access
 
 aws bedrock list-foundation-models
@@ -243,7 +225,6 @@ aws bedrock list-foundation-models
 MLflow Connectivity
 
 mlflow ui
-
 
 SageMaker Role Issues
 
