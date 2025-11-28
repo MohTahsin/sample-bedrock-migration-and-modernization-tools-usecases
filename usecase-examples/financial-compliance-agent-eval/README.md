@@ -10,16 +10,13 @@ This project takes you from **local experimentation** to a **production-ready ag
 
 This project demonstrates a complete workflow for:
 
-1. **Prompt Optimization**  
-   Use Bedrock Prompt Management + Prompt Optimization APIs to iteratively refine prompts.
-
-2. **Local Development**  
+1. **Local Development**  
    Build and test a hybrid RAG + Web Search agent locally using Haystack and Chroma.
 
-3. **Scalable Evaluation**  
+2. **Scalable Evaluation**  
    Run large-scale, reproducible evaluations using SageMaker Pipelines with MLflow tracking.
 
-4. **Performance Benchmarking**  
+3. **Performance Benchmarking**  
    Compare prompts and models using semantic, retrieval, and factuality metrics.
 
 ---
@@ -29,7 +26,7 @@ This project demonstrates a complete workflow for:
 The pipeline integrates:
 
 - **Amazon Bedrock**  
-  Foundation models + Prompt Management + Prompt Optimization  
+  Foundation models 
 - **Haystack**  
   Agent with `rag` + `web_search` tools, Chroma vector DB, RAG pipeline  
 - **SageMaker Pipelines**  
@@ -176,15 +173,7 @@ Scores are simple:
 ---
 ## Workflow Summary
 
-### 1. Prompt Optimization
-
-Start with a base prompt in Bedrock Prompt Management
-
-Optimize using Bedrock’s Prompt Optimization API
-
-Track versions for comparison
-
-### 2. Local Evaluation
+### 1. Local Evaluation
 
 Run RAG + Web Search agent locally
 
@@ -192,7 +181,7 @@ Evaluate with SAS, factuality, and tool accuracy
 
 Identify failure patterns early
 
-### 3. SageMaker Pipeline
+### 2. SageMaker Pipeline
 
 Moves local evaluation to scalable infrastructure
 
@@ -206,7 +195,7 @@ evaluate-predictions
 
 Logs metrics to MLflow for comparison across models and prompts
 
-### 4. Optional Conditional Promotion
+### 3. Optional Conditional Promotion
 
 Only save a prompt/model if thresholds (e.g., accuracy or factuality) are met.
 
@@ -214,8 +203,6 @@ Only save a prompt/model if thresholds (e.g., accuracy or factuality) are met.
 ## Troubleshooting
 
 Bedrock Permissions
-
-aws bedrock-agent get-prompt --prompt-identifier <id>
 
 Model Access
 
