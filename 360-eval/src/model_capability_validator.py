@@ -138,20 +138,20 @@ def test_service_tier(
         )
 
         # Check if response is valid
-        # For non-streaming, run_inference returns dict with "text" key
+        # For non-streaming, run_inference returns dict with "model_response" key
         if result:
-            response_text = result.get("text", "")
+            response_text = result.get("model_response", "")
             logger.debug(f"Received response for {model_id}: {type(result)}, keys: {result.keys() if isinstance(result, dict) else 'N/A'}")
             logger.debug(f"Response text: '{response_text[:100] if response_text else 'EMPTY'}'")
 
             # Check if we got actual text content OR valid token counts
             # Some models (like reasoning models) may return empty text but valid completion
-            # If we got inputTokens and outputTokens, the model responded successfully
+            # If we got input_tokens and output_tokens, the model responded successfully
             if response_text and len(response_text.strip()) > 0:
                 return True, None
-            elif result.get("outputTokens", 0) > 0 or result.get("inputTokens", 0) > 0:
+            elif result.get("output_tokens", 0) > 0 or result.get("input_tokens", 0) > 0:
                 # Model responded with tokens, even if text is empty (e.g., reasoning models)
-                logger.debug(f"Model responded with tokens (input: {result.get('inputTokens')}, output: {result.get('outputTokens')})")
+                logger.debug(f"Model responded with tokens (input: {result.get('input_tokens')}, output: {result.get('output_tokens')})")
                 return True, None
             else:
                 return False, "Empty response from model"
