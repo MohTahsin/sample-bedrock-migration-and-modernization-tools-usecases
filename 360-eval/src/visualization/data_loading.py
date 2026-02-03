@@ -66,12 +66,16 @@ def get_evaluation_config_signature(df):
     Create a unique signature for evaluation configuration.
     Evaluations with matching signatures can be safely merged.
 
+    Note: Models are intentionally excluded from the signature so that
+    evaluations with the same task parameters but different models
+    can be aggregated together in reports.
+
     Returns:
         tuple: Configuration components that define a unique evaluation
     """
     try:
         # Extract unique values for each config component
-        models = tuple(sorted(df['model_id'].unique()))
+        # Note: models are NOT included - we want to aggregate across different model sets
         task_criteria = tuple(sorted(df['task_criteria'].unique()))
         task_types = tuple(sorted(df['task_types'].unique()))
 
@@ -94,8 +98,8 @@ def get_evaluation_config_signature(df):
         # Temperature values
         temperatures = tuple(sorted(df['TEMPERATURE'].unique())) if 'TEMPERATURE' in df.columns else tuple()
 
-        # Create signature tuple
-        config_sig = (models, task_criteria, task_types, judges, user_metrics, temperatures)
+        # Create signature tuple (models excluded to allow cross-model aggregation)
+        config_sig = (task_criteria, task_types, judges, user_metrics, temperatures)
 
         return config_sig
     except Exception as e:
