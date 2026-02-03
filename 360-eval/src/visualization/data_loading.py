@@ -5,6 +5,7 @@ Data loading and preprocessing functions for benchmark results.
 import ast
 import glob
 import logging
+import re
 import uuid
 from pathlib import Path
 
@@ -18,7 +19,11 @@ logger = logging.getLogger(__name__)
 def extract_model_name(model_id):
     """Extract clean model name from ID.
 
-    Simple rule: Take everything after the last "/" and remove any ":[number]" suffix.
+    Cleans model names by:
+    1. Taking everything after the last "/"
+    2. Removing version suffixes like ":0", ":1"
+    3. Stripping provider prefixes (anthropic., meta., amazon., etc.)
+    4. Removing date stamps (YYYYMMDD patterns)
     """
     # Check if this is an optimized prompt variant
     optimization_suffix = ""
@@ -43,6 +48,16 @@ def extract_model_name(model_id):
     # Remove version suffix like :0, :1
     if ':' in model_id:
         model_id = model_id.split(':')[0]
+
+    # Strip provider prefixes
+    provider_prefixes = ['anthropic.', 'meta.', 'amazon.', 'mistral.', 'cohere.', 'ai21.']
+    for prefix in provider_prefixes:
+        if model_id.startswith(prefix):
+            model_id = model_id[len(prefix):]
+            break
+
+    # Remove date stamps (YYYYMMDD patterns, typically preceded by - or _)
+    model_id = re.sub(r'[-_]?\d{8}', '', model_id)
 
     return model_id + optimization_suffix + service_tier_suffix
 
