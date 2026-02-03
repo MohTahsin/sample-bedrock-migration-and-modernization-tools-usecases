@@ -538,13 +538,14 @@ def create_regional_performance_analysis(df):
 
 
 
-def create_html_report(output_dir, timestamp, evaluation_names=None):
+def create_html_report(output_dir, timestamp, evaluation_names=None, model_ids=None):
     """Generate HTML benchmark report with task-specific analysis.
 
     Args:
         output_dir: Directory containing CSV files and where report will be saved
         timestamp: Timestamp for report filename
         evaluation_names: Optional list of evaluation names to filter by
+        model_ids: Optional list of model IDs to filter by (raw model_id values)
     """
     # Ensure output_dir is an absolute path
     if isinstance(output_dir, str):
@@ -567,10 +568,13 @@ def create_html_report(output_dir, timestamp, evaluation_names=None):
         logger.info(f"Loading and processing data for evaluations: {evaluation_names}")
     else:
         logger.info("Loading and processing data for all evaluations...")
+    if model_ids:
+        logger.info(f"Filtering to {len(model_ids)} selected models")
     try:
-        df = load_data(output_dir, evaluation_names)
+        df = load_data(output_dir, evaluation_names, model_ids)
         evaluation_info = f" for evaluations {evaluation_names}" if evaluation_names else " (all evaluations)"
-        logger.info(f"Loaded data with {len(df)} records from {output_dir}{evaluation_info}")
+        model_info = f", filtered to {len(model_ids)} models" if model_ids else ""
+        logger.info(f"Loaded data with {len(df)} records from {output_dir}{evaluation_info}{model_info}")
     except Exception as e:
         logger.error(f"Error loading data: {str(e)}")
         raise

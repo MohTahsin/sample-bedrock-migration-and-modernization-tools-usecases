@@ -134,7 +134,7 @@ def get_evaluation_config_signature(df):
         return (str(uuid.uuid4()),)
 
 
-def load_data(directory, evaluation_names=None):
+def load_data(directory, evaluation_names=None, model_ids=None):
     """Load and prepare benchmark data with proper configuration-based grouping.
 
     Only merges evaluations with identical configurations (models, judges, criteria, etc.)
@@ -142,6 +142,7 @@ def load_data(directory, evaluation_names=None):
     Args:
         directory: Directory containing CSV files
         evaluation_names: Optional list of evaluation names to filter by
+        model_ids: Optional list of model IDs to filter by (raw model_id values)
     """
     directory = Path(directory)
     logger.info(f"Looking for CSV files in: {directory}")
@@ -235,6 +236,13 @@ def load_data(directory, evaluation_names=None):
     df = (df[df['api_call_status'] == 'Success']
           .reset_index(drop=True)
           .assign(model_name=lambda x: x['model_id'].apply(extract_model_name)))
+
+    # Filter by model IDs if specified
+    if model_ids:
+        df = df[df['model_id'].isin(model_ids)].reset_index(drop=True)
+        logger.info(f"Filtered to {len(df)} rows matching {len(model_ids)} selected models")
+        if df.empty:
+            raise ValueError(f"No data found for selected models: {model_ids}")
 
     # Create model_name_with_tier for latency/cost grouping (keep original model_name for accuracy)
     if 'service_tier' in df.columns:

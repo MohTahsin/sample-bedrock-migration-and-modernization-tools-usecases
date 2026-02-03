@@ -29,20 +29,19 @@ class ReportViewerComponent:
         )
         
         selected_eval_names = []
+        completed_with_results = [
+            e for e in st.session_state.evaluations
+            if e.get("status") == "completed"
+        ]
+
         if report_scope == "Selected Evaluations":
-            # Get completed evaluations (don't require existing results since we're generating a new report)
-            completed_with_results = [
-                e for e in st.session_state.evaluations 
-                if e.get("status") == "completed"
-            ]
-            
             if completed_with_results:
                 selected_eval_names = st.multiselect(
                     "Select evaluations for report:",
                     options=[e["name"] for e in completed_with_results],
                     help="Select which completed evaluations to include in the report"
                 )
-                
+
                 if selected_eval_names:
                     st.info(f"Report will include {len(selected_eval_names)} evaluation(s): {', '.join(selected_eval_names)}")
                 else:
@@ -51,16 +50,67 @@ class ReportViewerComponent:
                 st.warning("No completed evaluations with results found.")
         else:
             st.info("Report will include all completed evaluations.")
+
+        # Model filtering section
+        st.markdown("---")
+        model_scope = st.radio(
+            "Model Scope:",
+            ["All Models", "Selected Models"],
+            index=0,
+            help="Choose whether to include all models or filter to specific models"
+        )
+
+        selected_model_ids = []
+        if model_scope == "Selected Models":
+            # Get models from selected evaluations (or all completed if "All Evaluations")
+            if report_scope == "Selected Evaluations" and selected_eval_names:
+                source_evals = [e for e in completed_with_results if e["name"] in selected_eval_names]
+            else:
+                source_evals = completed_with_results
+
+            # Extract unique models from source evaluations
+            available_models = {}  # {display_name: raw_model_id}
+            for eval_config in source_evals:
+                for model in eval_config.get("selected_models", []):
+                    model_id = model.get("id") or model.get("model_id")
+                    if model_id:
+                        # Use extract_model_name for display, keep raw ID for filtering
+                        from ...visualization.data_loading import extract_model_name
+                        display_name = extract_model_name(model_id)
+                        available_models[display_name] = model_id
+
+            if available_models:
+                # Sort by display name for consistent ordering
+                sorted_display_names = sorted(available_models.keys())
+                selected_display_names = st.multiselect(
+                    "Select models for report:",
+                    options=sorted_display_names,
+                    help="Select which models to include in the report"
+                )
+
+                # Map display names back to raw model IDs
+                selected_model_ids = [available_models[name] for name in selected_display_names]
+
+                if selected_model_ids:
+                    st.info(f"Report will include {len(selected_model_ids)} model(s): {', '.join(selected_display_names)}")
+                else:
+                    st.warning("Please select at least one model for the report.")
+            else:
+                st.warning("No models found in the selected evaluations.")
+        else:
+            st.info("Report will include all models from selected evaluations.")
         
         # Generate report button
-        can_generate = (report_scope == "All Evaluations" or 
-                      (report_scope == "Selected Evaluations" and selected_eval_names))
-        
+        can_generate_eval = (report_scope == "All Evaluations" or
+                            (report_scope == "Selected Evaluations" and selected_eval_names))
+        can_generate_model = (model_scope == "All Models" or
+                             (model_scope == "Selected Models" and selected_model_ids))
+        can_generate = can_generate_eval and can_generate_model
+
         if st.button("🔄 Generate Report", key="gen_comprehensive_report", type="primary", disabled=not can_generate):
-            if report_scope == "Selected Evaluations":
-                self._generate_comprehensive_report(selected_evaluations=selected_eval_names)
-            else:
-                self._generate_comprehensive_report()
+            eval_filter = selected_eval_names if report_scope == "Selected Evaluations" else None
+            model_filter = selected_model_ids if model_scope == "Selected Models" else None
+            self._generate_comprehensive_report(selected_evaluations=eval_filter, selected_model_ids=model_filter)
         
         st.divider()
 
@@ -267,11 +317,12 @@ class ReportViewerComponent:
         except Exception as e:
             st.error(f"Error preparing download: {str(e)}")
     
-    def _generate_comprehensive_report(self, selected_evaluations=None):
+    def _generate_comprehensive_report(self, selected_evaluations=None, selected_model_ids=None):
         """Generate a comprehensive report from evaluation results in the directory.
-        
+
         Args:
             selected_evaluations: Optional list of evaluation names to filter by
+            selected_model_ids: Optional list of model IDs to filter by
         """
         try:
             # Import the visualize_results module
@@ -299,13 +350,16 @@ class ReportViewerComponent:
             
             # Create status indicator with appropriate message
             if selected_evaluations:
-                spinner_msg = f"Generating report from {len(selected_evaluations)} selected evaluation(s)... This may take a moment."
+                spinner_msg = f"Generating report from {len(selected_evaluations)} selected evaluation(s)"
             else:
-                spinner_msg = f"Generating report from {len(csv_files)} result files... This may take a moment."
-                
+                spinner_msg = f"Generating report from {len(csv_files)} result files"
+            if selected_model_ids:
+                spinner_msg += f" with {len(selected_model_ids)} selected model(s)"
+            spinner_msg += "... This may take a moment."
+
             with st.spinner(spinner_msg):
-                # Call the report generator with the output directory and optional evaluation filter
-                report_path = create_html_report(output_dir, timestamp, selected_evaluations)
+                # Call the report generator with the output directory and optional filters
+                report_path = create_html_report(output_dir, timestamp, selected_evaluations, selected_model_ids)
                 
                 # Find which CSV files were used to generate this comprehensive report
                 import glob
@@ -347,6 +401,8 @@ class ReportViewerComponent:
                     scope_description = f"data from {len(selected_evaluations)} selected evaluation(s): {', '.join(selected_evaluations)}"
                 else:
                     scope_description = f"data from {len(csv_files_used)} evaluation result files"
+                if selected_model_ids:
+                    scope_description += f", filtered to {len(selected_model_ids)} model(s)"
                 
                 st.success(f"✅ **Report generated successfully!**  \n"
                           f"📁 **File:** {os.path.basename(str(report_path))}  \n"
