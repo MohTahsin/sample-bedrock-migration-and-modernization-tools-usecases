@@ -33,10 +33,16 @@ def extract_model_name(model_id):
         model_id = model_id.replace("_Prompt_Optimized", "")
 
     # Check if this is a service tier variant (_priority, _flex, _default)
+    # Use abbreviated suffixes: (P), (D), (F)
     service_tier_suffix = ""
-    for tier in ["_priority", "_flex", "_default"]:
+    tier_abbreviations = {
+        "_priority": " (P)",
+        "_default": " (D)",
+        "_flex": " (F)",
+    }
+    for tier, abbrev in tier_abbreviations.items():
         if model_id.endswith(tier):
-            service_tier_suffix = tier
+            service_tier_suffix = abbrev
             # Remove suffix temporarily for processing
             model_id = model_id[:-len(tier)]
             break
@@ -49,12 +55,17 @@ def extract_model_name(model_id):
     if ':' in model_id:
         model_id = model_id.split(':')[0]
 
-    # Strip provider prefixes
-    provider_prefixes = ['anthropic.', 'meta.', 'amazon.', 'mistral.', 'cohere.', 'ai21.']
-    for prefix in provider_prefixes:
-        if model_id.startswith(prefix):
-            model_id = model_id[len(prefix):]
-            break
+    # Strip regional prefix if present (e.g., us., eu., ap., global.)
+    # Matches 2-letter codes or "global" followed by a dot
+    model_id = re.sub(r'^([a-z]{2}|global)\.', '', model_id)
+
+    # Strip provider/family prefix (first segment before the dot)
+    # e.g., "amazon.nova-2-lite" -> "nova-2-lite"
+    # Exception: keep prefix if resulting name would be too short (≤8 chars)
+    if '.' in model_id:
+        remaining = model_id.split('.', 1)[1]
+        if len(remaining) > 8:
+            model_id = remaining
 
     # Remove date stamps (YYYYMMDD patterns, typically preceded by - or _)
     model_id = re.sub(r'[-_]?\d{8}', '', model_id)
