@@ -245,9 +245,15 @@ def load_data(directory, evaluation_names=None, model_ids=None):
             raise ValueError(f"No data found for selected models: {model_ids}")
 
     # Create model_name_with_tier for latency/cost grouping (keep original model_name for accuracy)
+    # Use abbreviated tier suffixes: (P), (D), (F)
+    tier_abbreviations = {
+        'priority': ' (P)',
+        'default': ' (D)',
+        'flex': ' (F)',
+    }
     if 'service_tier' in df.columns:
         df['model_name_with_tier'] = df.apply(
-            lambda row: f"{row['model_name']}_{row['service_tier']}" if pd.notna(row.get('service_tier')) else row['model_name'],
+            lambda row: f"{row['model_name']}{tier_abbreviations.get(row['service_tier'], '')}" if pd.notna(row.get('service_tier')) else row['model_name'],
             axis=1
         )
     else:

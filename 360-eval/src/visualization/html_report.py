@@ -28,7 +28,7 @@ from .metrics_calculation import (
 from .chart_generators import create_visualizations
 from .analysis import (
     generate_task_findings, generate_task_recommendations,
-    identify_unique_task_configs, generate_histogram_findings
+    identify_unique_task_configs
 )
 
 # Import utils from parent directory
@@ -642,16 +642,12 @@ def create_html_report(output_dir, timestamp, evaluation_names=None, model_ids=N
     # Add this to extract unique models
     unique_models = df['model_name'].dropna().unique().tolist()
 
-    logger.info("Generating TTFT histogram findings...")
-    time_to_first_token_findings = generate_histogram_findings(df)
-    perf_analysis = '# Performance Analysis across all models:\n- ' + '\n- '.join(time_to_first_token_findings)
-
-    logger.info("Generating Accuracy histogram findings...")
-    accuracy_findings = generate_histogram_findings(df, key='mean_scores', label="Average Accuracy")     #TODO: BY TASK??
-    acc_analysis = '# Accuracy Analysis across all models:\n- ' + '\n- '.join(accuracy_findings)
-
-    logger.info("Generating Output Tokens histogram findings...")
-    total_tokens_findings = generate_histogram_findings(df, key='output_tokens', label="Output Tokens Per Response")
+    # Distribution findings removed to reduce noise - charts are self-explanatory
+    time_to_first_token_findings = []
+    accuracy_findings = []
+    total_tokens_findings = []
+    perf_analysis = ''
+    acc_analysis = ''
 
     whole_number_cost_metrics = convert_scientific_to_decimal(cost_metrics)
     cost_analysis = '# Cost Analysis across all models on all Task:\n' + '\n'.join([str(i) for i in whole_number_cost_metrics.to_dict(orient='records')])

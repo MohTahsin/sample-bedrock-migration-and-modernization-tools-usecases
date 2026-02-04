@@ -136,14 +136,16 @@ def create_normal_distribution_histogram(df,
         std = model_data.std()
 
         # Use percent normalization for all metrics - much more interpretable
-        # Include mean and std in legend for easy reference
+        # Use fewer bins for accuracy metrics (small range) vs latency/tokens (large range)
+        num_bins = 30 if is_accuracy_metric else 100
+
         fig.add_trace(go.Histogram(
             x=model_data,
-            name=f'{model}', #(n={len(model_data)}, Average={mean:.3f}, Standard Deviation={std:.3f})',
+            name=f'{model}',
             opacity=0.6,
             marker_color=colors[i % len(colors)],
             histnorm='percent',  # Y-axis shows percentage of observations
-            nbinsx=200,  # Increased from 100 for even finer granularity
+            nbinsx=num_bins,
             showlegend=True
         ))
 
@@ -408,34 +410,6 @@ def create_outlier_boxplot(df, key='time_to_first_byte', label='Time to First To
         )
     )
 
-    # Add summary statistics annotation
-    total_records = len(df_clean)
-    outlier_pct_total = (total_outliers / total_records) * 100 if total_records > 0 else 0
-
-    annotation_text = (
-        f"<b>Distribution Summary</b><br>"
-        f"Total Records: {total_records}<br>"
-        f"{outlier_desc} ({outlier_pct_total:.1f}%)<br>"
-        f"{threshold_label} Threshold: {threshold_val:.3f}<br><br>"
-        f"<i>Each bar shows percentile ranges</i>"
-    )
-
-    fig.add_annotation(
-        text=annotation_text,
-        xref="paper",
-        yref="paper",
-        x=0.98,  # Move to right side
-        y=0.02,  # Position at bottom of chart area
-        xanchor="right",
-        yanchor="bottom",
-        showarrow=False,
-        bgcolor="rgba(50, 50, 50, 0.8)",
-        bordercolor="rgba(255, 255, 255, 0.3)",
-        borderwidth=1,
-        borderpad=8,
-        font=dict(size=11, color='#e0e0e0'),
-        align='left'
-    )
 
     # Update layout
     fig.update_layout(
@@ -451,7 +425,7 @@ def create_outlier_boxplot(df, key='time_to_first_byte', label='Time to First To
         yaxis_title='Model',
         barmode='stack',
         height=max(400, len(unique_models) * 60),  # Dynamic height based on number of models
-        margin=dict(l=300, r=150, t=100, b=150),  # Extra margin for model names and bottom annotation
+        margin=dict(l=300, r=150, t=100, b=100),  # Left margin for model names
         showlegend=True,
         legend=dict(
             orientation="v",

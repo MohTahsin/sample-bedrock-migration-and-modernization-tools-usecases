@@ -87,7 +87,11 @@ def identify_unique_task_configs(df):
 
 
 def generate_task_findings(df, model_task_metrics, has_latency_only=False):
-    """Generate key findings for each task configuration (using task_display_name)."""
+    """Generate key findings for each task configuration (using task_display_name).
+
+    Consolidates findings by model - if the same model wins multiple categories,
+    they are combined into a single finding.
+    """
     task_findings = {}
 
     # Loop through unique task_display_name to handle multiple configs
@@ -99,36 +103,57 @@ def generate_task_findings(df, model_task_metrics, has_latency_only=False):
             # Check if this specific task has success_rate data (for mixed evaluations)
             task_has_success_rate = 'success_rate' in task_data.columns and task_data['success_rate'].notna().any()
 
-            # Skip accuracy-related findings only if this specific task has no success_rate
+            # Collect winners by category
+            model_wins = {}  # {model_name: [(category, value_str), ...]}
+
             if task_has_success_rate and not has_latency_only:
                 # Best accuracy model
                 best_acc_idx = task_data['success_rate'].idxmax()
                 best_acc = task_data.loc[best_acc_idx]
-                findings.append(f"{best_acc['model_name']} had the highest success rate ({best_acc['success_rate']:.1%})")
+                model_name = best_acc['model_name']
+                if model_name not in model_wins:
+                    model_wins[model_name] = []
+                model_wins[model_name].append(('success rate', f"{best_acc['success_rate']:.1%}"))
 
             # Best speed model
             best_speed_idx = task_data['avg_latency'].idxmin()
             best_speed = task_data.loc[best_speed_idx]
-            findings.append(
-                f"{best_speed['model_name']} was the fastest with {best_speed['avg_latency']:.2f}s average latency")
+            model_name = best_speed['model_name']
+            if model_name not in model_wins:
+                model_wins[model_name] = []
+            model_wins[model_name].append(('latency', f"{best_speed['avg_latency']:.2f}s"))
 
             # Best throughput model
             best_otps_idx = task_data['avg_otps'].idxmax()
             best_otps = task_data.loc[best_otps_idx]
-            findings.append(
-                f"{best_otps['model_name']} had the highest throughput ({best_otps['avg_otps']:.1f} tokens/sec)")
+            model_name = best_otps['model_name']
+            if model_name not in model_wins:
+                model_wins[model_name] = []
+            model_wins[model_name].append(('throughput', f"{best_otps['avg_otps']:.1f} tok/s"))
 
-            # Skip value ratio only if this task has no success_rate
             if task_has_success_rate and not has_latency_only:
                 # Best value model
                 best_value_idx = task_data['value_ratio'].idxmax()
                 best_value = task_data.loc[best_value_idx]
-                findings.append(
-                    f"{best_value['model_name']} offered the best value (success/cost ratio: {best_value['value_ratio']:.2f})")
+                model_name = best_value['model_name']
+                if model_name not in model_wins:
+                    model_wins[model_name] = []
+                model_wins[model_name].append(('value ratio', f"{best_value['value_ratio']:.2f}"))
 
-                # Average success rate
+            # Build consolidated findings - models with most wins first
+            for model_name, wins in sorted(model_wins.items(), key=lambda x: -len(x[1])):
+                if len(wins) == 1:
+                    category, value = wins[0]
+                    findings.append(f"<b>{model_name}</b> had the best {category} ({value})")
+                else:
+                    # Consolidate multiple wins
+                    wins_text = ", ".join([f"{cat} ({val})" for cat, val in wins])
+                    findings.append(f"<b>{model_name}</b> led in {wins_text}")
+
+            # Average success rate (standalone finding)
+            if task_has_success_rate and not has_latency_only:
                 avg_success = task_data['success_rate'].mean()
-                findings.append(f"Average success rate for this task was {avg_success:.1%}")
+                findings.append(f"Average success rate: {avg_success:.1%}")
 
             # Error analysis - filter by both task_types and config_signature
             task_types = task_data['task_types'].iloc[0]
@@ -147,8 +172,8 @@ def generate_task_findings(df, model_task_metrics, has_latency_only=False):
                 [error_patterns.extend(exp) for exp in all_errors]
                 if error_patterns:
                     common_errors = Counter(error_patterns).most_common(2)
-                    errors_text = ", ".join([f"{err[0]} ({err[1]} occurrences)" for err in common_errors])
-                    findings.append(f"Most common errors: {errors_text}")
+                    errors_text = ", ".join([f"{err[0]} ({err[1]}x)" for err in common_errors])
+                    findings.append(f"Common errors: {errors_text}")
 
         task_findings[task_display] = findings
 
@@ -218,8 +243,8 @@ def generate_task_recommendations(model_task_metrics, has_latency_only=False):
 
 def generate_histogram_findings(df, key='time_to_first_byte', label='Time to First Token'):
     """
-    Generate key findings for the TTFB histogram analysis.
-    Returns either meaningful findings or a message about insufficient data.
+    Generate key findings for the histogram analysis.
+    Returns condensed, high-value findings without per-model verbosity.
 
     Args:
         df: DataFrame containing the benchmark data
@@ -231,73 +256,68 @@ def generate_histogram_findings(df, key='time_to_first_byte', label='Time to Fir
     min_records = MIN_RECORDS_FOR_ANALYSIS
     # Check if we have enough data
     value_counts = df['model_name'].value_counts()
-    # Get values that appear more than 2000 times
     frequent_values = value_counts[value_counts > min_records].index
-    # Filter the dataframe to only include rows where the column value is in our frequent_values list
     df_match = df[df['model_name'].isin(frequent_values)]
     if df_match.empty:
-        return [f"Not enough data to perform measurements (need at minimum over {MIN_RECORDS_FOR_HISTOGRAM} measurements per model)"]
+        return [f"Not enough data (need >{MIN_RECORDS_FOR_HISTOGRAM} measurements per model)"]
 
-    # Filter out any null values
     df_clean = df_match[df_match[key].notna()].copy()
-
     if df_clean.empty:
         return [f"No valid {key} data found"]
 
     findings = []
 
-    for model in df_clean['model_name'].unique().tolist():
-        df_model = df_clean[df_clean['model_name'] == model]
-        # Overall statistics
-        overall_mean = df_model[key].mean()
-        overall_std = df_model[key].std()
-        findings.append(f"Model <b>{model}</b> {label}: Average={overall_mean:.3f}s, Standard Deviation={overall_std:.3f}s across {len(df_model)} measurements")
-
-    # Model-specific analysis (optimized with method chaining)
+    # Model-specific analysis
     model_stats = (df_clean.groupby('model_name')[key]
                    .agg(['mean', 'std', 'count'])
                    .reset_index()
-                   .query(f'count >= {min_records}'))  # Only models with sufficient data
+                   .query(f'count >= {min_records}'))
 
-    if not model_stats.empty:
-        # Fastest model (lowest mean)
-        fastest_model = model_stats.loc[model_stats['mean'].idxmin()]
-        findings.append(f"Highest achieving model: <b>{fastest_model['model_name']}</b> with {fastest_model['mean']:.3f}s average {label}")
+    if model_stats.empty:
+        return [f"No models with sufficient data for {label} analysis"]
 
-        # Most consistent model (lowest standard deviation)
-        most_consistent = model_stats.loc[model_stats['std'].idxmin()]
-        findings.append(f"Most consistent model: <b>{most_consistent['model_name']}</b> with {most_consistent['std']:.3f}s standard deviation")
+    # Calculate coefficient of variation
+    model_stats['cv'] = model_stats['std'] / model_stats['mean']
 
-        # Model with highest variability
-        most_variable = model_stats.loc[model_stats['std'].idxmax()]
-        findings.append(f"Most variable model (fat-tails): <b>{most_variable['model_name']}</b> with {most_variable['std']:.3f}s standard deviation")
+    # Fastest model (lowest mean)
+    fastest = model_stats.loc[model_stats['mean'].idxmin()]
+    findings.append(f"Best {label}: <b>{fastest['model_name']}</b> ({fastest['mean']:.3f}s avg)")
 
-        # Distribution characteristics
-        # Check for normality using coefficient of variation
-        model_stats['cv'] = model_stats['std'] / model_stats['mean']  # Coefficient of variation
+    # Most consistent model (lowest CV) - only if different from fastest
+    most_consistent = model_stats.loc[model_stats['cv'].idxmin()]
+    if most_consistent['model_name'] != fastest['model_name']:
+        findings.append(f"Most consistent: <b>{most_consistent['model_name']}</b> (CV={most_consistent['cv']:.2f})")
 
-        # Models with good normal distribution characteristics (low CV)
-        well_distributed = model_stats[model_stats['cv'] < COEFFICIENT_VARIATION_THRESHOLD]  # CV < 30% indicates good consistency
-        if not well_distributed.empty:
-            best_distributed = well_distributed.loc[well_distributed['cv'].idxmin()]
-            findings.append(f"Best distribution characteristics: <b>{best_distributed['model_name']}</b> (Coefficient of Variation/CV={best_distributed['cv']:.2f})")
+    # Most variable model (highest CV) - only if significantly different
+    most_variable = model_stats.loc[model_stats['cv'].idxmax()]
+    if most_variable['cv'] > COEFFICIENT_VARIATION_THRESHOLD:
+        findings.append(f"Most variable: <b>{most_variable['model_name']}</b> (CV={most_variable['cv']:.2f})")
 
-        # Performance spread analysis
-        fastest_mean = model_stats['mean'].min()
-        slowest_mean = model_stats['mean'].max()
-        performance_spread = ((slowest_mean - fastest_mean) / fastest_mean) * 100
-        findings.append(f"Performance spread: {performance_spread:.1f}% difference between best and worst achieving models")
-        for model in df_clean['model_name'].unique().tolist():
-            # Outlier detection
-            df_model = df_clean[df_clean['model_name'] == model]
-            q1 = df_model[key].quantile(0.25)
-            q3 = df_model[key].quantile(0.75)
-            iqr = q3 - q1
-            outlier_threshold = q3 + 1.5 * iqr
-            outliers = df_model[df_model[key] > outlier_threshold]
-            if not outliers.empty:
-                outlier_pct = (len(outliers) / len(df_clean)) * 100
-                findings.append(f"Outliers for <b>{model}</b>: {len(outliers)} measurements ({outlier_pct:.1f}%) exceed {outlier_threshold:.3f}s")
+    # Performance spread (only if meaningful difference)
+    fastest_mean = model_stats['mean'].min()
+    slowest_mean = model_stats['mean'].max()
+    performance_spread = ((slowest_mean - fastest_mean) / fastest_mean) * 100
+    if performance_spread > 10:  # Only show if >10% spread
+        findings.append(f"Performance spread: {performance_spread:.0f}% between best and worst")
+
+    # Outlier summary - only for models with significant outliers (>5%)
+    outlier_models = []
+    for model in df_clean['model_name'].unique():
+        df_model = df_clean[df_clean['model_name'] == model]
+        q1 = df_model[key].quantile(0.25)
+        q3 = df_model[key].quantile(0.75)
+        iqr = q3 - q1
+        outlier_threshold = q3 + 1.5 * iqr
+        outliers = df_model[df_model[key] > outlier_threshold]
+        outlier_pct = (len(outliers) / len(df_model)) * 100
+        if outlier_pct > 5:  # Only report if >5% outliers
+            outlier_models.append((model, outlier_pct))
+
+    if outlier_models:
+        # Sort by outlier percentage descending
+        outlier_models.sort(key=lambda x: -x[1])
+        outlier_text = ", ".join([f"{m} ({p:.0f}%)" for m, p in outlier_models[:3]])  # Top 3 only
+        findings.append(f"Models with significant outliers: {outlier_text}")
 
     return findings
 
