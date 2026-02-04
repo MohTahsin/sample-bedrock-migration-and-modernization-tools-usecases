@@ -152,16 +152,43 @@ class UnprocessedRecordsViewer:
         tab1, tab2, tab3 = st.tabs(["By Error Type", "By Model", "By Task Type"])
 
         with tab1:
-            # Error type distribution
-            error_counts = error_df['reason'].value_counts()
-            fig_errors = px.pie(
-                values=error_counts.values,
-                names=error_counts.index,
+            # Error type distribution - horizontal bar chart
+            # Normalize error messages by extracting the main error type
+            def normalize_error(error_msg):
+                if pd.isna(error_msg) or error_msg == 'Unknown':
+                    return 'Unknown'
+                error_msg = str(error_msg)
+                # Extract error type (e.g., "RuntimeError", "TimeoutError", "ValidationError")
+                # Pattern: Look for common error type patterns
+                import re
+                # Match patterns like "RuntimeError:", "RuntimeError -", or just "RuntimeError"
+                match = re.match(r'^(\w*Error|\w*Exception|\w*Timeout|\w*Failure)', error_msg, re.IGNORECASE)
+                if match:
+                    return match.group(1)
+                # If no match, take first 50 chars or up to first colon/hash
+                truncated = re.split(r'[:\-#]', error_msg)[0].strip()
+                return truncated[:50] if len(truncated) > 50 else truncated
+
+            error_df['reason_normalized'] = error_df['reason'].apply(normalize_error)
+            error_counts = error_df['reason_normalized'].value_counts().reset_index()
+            error_counts.columns = ['reason', 'count']
+            error_counts = error_counts.sort_values('count', ascending=True)  # Ascending for horizontal bar
+
+            fig_errors = px.bar(
+                error_counts,
+                x='count',
+                y='reason',
+                orientation='h',
                 title="Distribution of Error Types",
-                hole=0.4
+                labels={'reason': 'Error Type', 'count': 'Failed Records'}
             )
-            fig_errors.update_layout(template="plotly_dark")
-            st.plotly_chart(fig_errors, width='stretch')
+            fig_errors.update_layout(
+                template="plotly_dark",
+                height=max(400, len(error_counts) * 35),  # Dynamic height based on number of error types
+                margin=dict(l=20, r=20, t=50, b=20),
+                yaxis=dict(tickfont=dict(size=11))
+            )
+            st.plotly_chart(fig_errors, use_container_width=True)
 
         with tab2:
             # Errors by model

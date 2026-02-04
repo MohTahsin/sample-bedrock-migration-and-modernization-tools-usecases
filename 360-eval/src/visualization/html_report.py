@@ -28,7 +28,7 @@ from .metrics_calculation import (
 from .chart_generators import create_visualizations
 from .analysis import (
     generate_task_findings, generate_task_recommendations,
-    identify_unique_task_configs, generate_histogram_findings
+    identify_unique_task_configs
 )
 
 # Import utils from parent directory
@@ -538,13 +538,14 @@ def create_regional_performance_analysis(df):
 
 
 
-def create_html_report(output_dir, timestamp, evaluation_names=None):
+def create_html_report(output_dir, timestamp, evaluation_names=None, model_ids=None):
     """Generate HTML benchmark report with task-specific analysis.
 
     Args:
         output_dir: Directory containing CSV files and where report will be saved
         timestamp: Timestamp for report filename
         evaluation_names: Optional list of evaluation names to filter by
+        model_ids: Optional list of model IDs to filter by (raw model_id values)
     """
     # Ensure output_dir is an absolute path
     if isinstance(output_dir, str):
@@ -567,10 +568,13 @@ def create_html_report(output_dir, timestamp, evaluation_names=None):
         logger.info(f"Loading and processing data for evaluations: {evaluation_names}")
     else:
         logger.info("Loading and processing data for all evaluations...")
+    if model_ids:
+        logger.info(f"Filtering to {len(model_ids)} selected models")
     try:
-        df = load_data(output_dir, evaluation_names)
+        df = load_data(output_dir, evaluation_names, model_ids)
         evaluation_info = f" for evaluations {evaluation_names}" if evaluation_names else " (all evaluations)"
-        logger.info(f"Loaded data with {len(df)} records from {output_dir}{evaluation_info}")
+        model_info = f", filtered to {len(model_ids)} models" if model_ids else ""
+        logger.info(f"Loaded data with {len(df)} records from {output_dir}{evaluation_info}{model_info}")
     except Exception as e:
         logger.error(f"Error loading data: {str(e)}")
         raise
@@ -638,16 +642,12 @@ def create_html_report(output_dir, timestamp, evaluation_names=None):
     # Add this to extract unique models
     unique_models = df['model_name'].dropna().unique().tolist()
 
-    logger.info("Generating TTFT histogram findings...")
-    time_to_first_token_findings = generate_histogram_findings(df)
-    perf_analysis = '# Performance Analysis across all models:\n- ' + '\n- '.join(time_to_first_token_findings)
-
-    logger.info("Generating Accuracy histogram findings...")
-    accuracy_findings = generate_histogram_findings(df, key='mean_scores', label="Average Accuracy")     #TODO: BY TASK??
-    acc_analysis = '# Accuracy Analysis across all models:\n- ' + '\n- '.join(accuracy_findings)
-
-    logger.info("Generating Output Tokens histogram findings...")
-    total_tokens_findings = generate_histogram_findings(df, key='output_tokens', label="Output Tokens Per Response")
+    # Distribution findings removed to reduce noise - charts are self-explanatory
+    time_to_first_token_findings = []
+    accuracy_findings = []
+    total_tokens_findings = []
+    perf_analysis = ''
+    acc_analysis = ''
 
     whole_number_cost_metrics = convert_scientific_to_decimal(cost_metrics)
     cost_analysis = '# Cost Analysis across all models on all Task:\n' + '\n'.join([str(i) for i in whole_number_cost_metrics.to_dict(orient='records')])

@@ -5,6 +5,7 @@ Data loading and preprocessing functions for benchmark results.
 import ast
 import glob
 import logging
+import re
 import uuid
 from pathlib import Path
 
@@ -18,7 +19,11 @@ logger = logging.getLogger(__name__)
 def extract_model_name(model_id):
     """Extract clean model name from ID.
 
-    Simple rule: Take everything after the last "/" and remove any ":[number]" suffix.
+    Cleans model names by:
+    1. Taking everything after the last "/"
+    2. Removing version suffixes like ":0", ":1"
+    3. Stripping provider prefixes (anthropic., meta., amazon., etc.)
+    4. Removing date stamps (YYYYMMDD patterns)
     """
     # Check if this is an optimized prompt variant
     optimization_suffix = ""
@@ -28,10 +33,16 @@ def extract_model_name(model_id):
         model_id = model_id.replace("_Prompt_Optimized", "")
 
     # Check if this is a service tier variant (_priority, _flex, _default)
+    # Use abbreviated suffixes: (P), (D), (F)
     service_tier_suffix = ""
-    for tier in ["_priority", "_flex", "_default"]:
+    tier_abbreviations = {
+        "_priority": " (P)",
+        "_default": " (D)",
+        "_flex": " (F)",
+    }
+    for tier, abbrev in tier_abbreviations.items():
         if model_id.endswith(tier):
-            service_tier_suffix = tier
+            service_tier_suffix = abbrev
             # Remove suffix temporarily for processing
             model_id = model_id[:-len(tier)]
             break
@@ -43,6 +54,21 @@ def extract_model_name(model_id):
     # Remove version suffix like :0, :1
     if ':' in model_id:
         model_id = model_id.split(':')[0]
+
+    # Strip regional prefix if present (e.g., us., eu., ap., global.)
+    # Matches 2-letter codes or "global" followed by a dot
+    model_id = re.sub(r'^([a-z]{2}|global)\.', '', model_id)
+
+    # Strip provider/family prefix (first segment before the dot)
+    # e.g., "amazon.nova-2-lite" -> "nova-2-lite"
+    # Exception: keep prefix if resulting name would be too short (≤8 chars)
+    if '.' in model_id:
+        remaining = model_id.split('.', 1)[1]
+        if len(remaining) > 8:
+            model_id = remaining
+
+    # Remove date stamps (YYYYMMDD patterns, typically preceded by - or _)
+    model_id = re.sub(r'[-_]?\d{8}', '', model_id)
 
     return model_id + optimization_suffix + service_tier_suffix
 
@@ -66,12 +92,16 @@ def get_evaluation_config_signature(df):
     Create a unique signature for evaluation configuration.
     Evaluations with matching signatures can be safely merged.
 
+    Note: Models are intentionally excluded from the signature so that
+    evaluations with the same task parameters but different models
+    can be aggregated together in reports.
+
     Returns:
         tuple: Configuration components that define a unique evaluation
     """
     try:
         # Extract unique values for each config component
-        models = tuple(sorted(df['model_id'].unique()))
+        # Note: models are NOT included - we want to aggregate across different model sets
         task_criteria = tuple(sorted(df['task_criteria'].unique()))
         task_types = tuple(sorted(df['task_types'].unique()))
 
@@ -94,8 +124,8 @@ def get_evaluation_config_signature(df):
         # Temperature values
         temperatures = tuple(sorted(df['TEMPERATURE'].unique())) if 'TEMPERATURE' in df.columns else tuple()
 
-        # Create signature tuple
-        config_sig = (models, task_criteria, task_types, judges, user_metrics, temperatures)
+        # Create signature tuple (models excluded to allow cross-model aggregation)
+        config_sig = (task_criteria, task_types, judges, user_metrics, temperatures)
 
         return config_sig
     except Exception as e:
@@ -104,7 +134,7 @@ def get_evaluation_config_signature(df):
         return (str(uuid.uuid4()),)
 
 
-def load_data(directory, evaluation_names=None):
+def load_data(directory, evaluation_names=None, model_ids=None):
     """Load and prepare benchmark data with proper configuration-based grouping.
 
     Only merges evaluations with identical configurations (models, judges, criteria, etc.)
@@ -112,6 +142,7 @@ def load_data(directory, evaluation_names=None):
     Args:
         directory: Directory containing CSV files
         evaluation_names: Optional list of evaluation names to filter by
+        model_ids: Optional list of model IDs to filter by (raw model_id values)
     """
     directory = Path(directory)
     logger.info(f"Looking for CSV files in: {directory}")
@@ -206,10 +237,23 @@ def load_data(directory, evaluation_names=None):
           .reset_index(drop=True)
           .assign(model_name=lambda x: x['model_id'].apply(extract_model_name)))
 
+    # Filter by model IDs if specified
+    if model_ids:
+        df = df[df['model_id'].isin(model_ids)].reset_index(drop=True)
+        logger.info(f"Filtered to {len(df)} rows matching {len(model_ids)} selected models")
+        if df.empty:
+            raise ValueError(f"No data found for selected models: {model_ids}")
+
     # Create model_name_with_tier for latency/cost grouping (keep original model_name for accuracy)
+    # Use abbreviated tier suffixes: (P), (D), (F)
+    tier_abbreviations = {
+        'priority': ' (P)',
+        'default': ' (D)',
+        'flex': ' (F)',
+    }
     if 'service_tier' in df.columns:
         df['model_name_with_tier'] = df.apply(
-            lambda row: f"{row['model_name']}_{row['service_tier']}" if pd.notna(row.get('service_tier')) else row['model_name'],
+            lambda row: f"{row['model_name']}{tier_abbreviations.get(row['service_tier'], '')}" if pd.notna(row.get('service_tier')) else row['model_name'],
             axis=1
         )
     else:
