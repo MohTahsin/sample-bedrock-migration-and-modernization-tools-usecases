@@ -1,55 +1,43 @@
-# Amazon Bedrock Migration and Modernization 
+# Amazon Bedrock Migration & Modernization Toolkit
 
-To leverage this repository please use our website powered by this GitHub: [Website](https://aws-samples.github.io/bedrock-migration-and-modernization/)
+One-stop shop for migrating and modernizing your LLM workloads to Amazon Bedrock.
 
-This repository contains pre-built examples to help customers get started with the Amazon Bedrock service.
+## Your Migration Journey
 
-## Contents
+### 1. Profile - Benchmark Performance
+**[bedrock-model-profiler](bedrock-model-profiler/)**
 
-- [Prompt Engineering](articles-guides)  
-- [Evaluations](multi-modal) 
-- [Observability](evaluation-observe)
+Measure latency, throughput, and cost across Bedrock models.
+- Compare TTFT, TTLB across regions
+- Identify optimal model/region combinations
+- Cost projections at scale
 
+### 2. Evaluate - Compare Model Quality
+**[360-eval](360-eval/)**
 
-## Getting Started
+Comprehensive LLM evaluation framework with LLM-as-a-Jury methodology.
+- Multi-model comparison (Bedrock, OpenAI, Azure, Gemini)
+- Quality scoring across 6 dimensions
+- Interactive HTML reports
 
-To get started with the code examples, ensure you have access to [Amazon Bedrock](https://aws.amazon.com/bedrock/). Then clone this repo and navigate to one of the folders above. Detailed instructions are provided in each folder's README.
+### 3. Implement - Use Case Examples
+**[usecase-examples](usecase-examples/)**
 
-### Enable AWS IAM permissions for Bedrock
+Production-ready patterns and examples.
+- Common migration patterns
+- Best practices
+- Reference architectures
 
-The AWS identity you assume from your environment (which is the [*Studio/notebook Execution Role*](https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-roles.html) from SageMaker, or could be a role or IAM User for self-managed notebooks or other use-cases), must have sufficient [AWS IAM permissions](https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies.html) to call the Amazon Bedrock service.
+## Prerequisites
 
-To grant Bedrock access to your identity, you can:
-
-- Open the [AWS IAM Console](https://us-east-1.console.aws.amazon.com/iam/home?#)
-- Find your [Role](https://us-east-1.console.aws.amazon.com/iamv2/home?#/roles) (if using SageMaker or otherwise assuming an IAM Role), or else [User](https://us-east-1.console.aws.amazon.com/iamv2/home?#/users)
-- Select *Add Permissions > Create Inline Policy* to attach new inline permissions, open the *JSON* editor and paste in the below example policy:
-
-```
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Sid": "BedrockFullAccess",
-            "Effect": "Allow",
-            "Action": ["bedrock:*"],
-            "Resource": "*"
-        }
-    ]
-}
-```
-
-
-For more information on the fine-grained action and resource permissions in Bedrock, check out the Bedrock Developer Guide.
+- AWS Account with Bedrock access
+- Python 3.10+
+- AWS CLI configured
 
 ## Contributing
 
-We welcome community contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-## Security
-
-See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## License
 
-This library is licensed under the MIT-0 License. See the [LICENSE](LICENSE) file.
+MIT-0 License. See [LICENSE](LICENSE)
