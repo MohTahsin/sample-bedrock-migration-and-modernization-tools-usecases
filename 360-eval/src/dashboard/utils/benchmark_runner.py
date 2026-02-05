@@ -224,13 +224,64 @@ def _process_evaluation_queue():
     dashboard_logger.info("Evaluation queue processor finished")
 
 def get_queue_status():
-    """Get current queue status for UI display."""
+    """Get current queue status for UI display.
+
+    Also checks status files to detect running evaluations that survived a UI restart.
+    """
     with _execution_lock:
+        current = _current_evaluation.copy() if _current_evaluation else None
+
+        # If no current evaluation in memory, check status files for running evaluations
+        # This handles the case where UI was restarted but subprocess is still running
+        if current is None:
+            running_from_files = _detect_running_evaluation_from_files()
+            if running_from_files:
+                current = running_from_files
+
         return {
             "queue_length": len(_evaluation_queue),
-            "current_evaluation": _current_evaluation.copy() if _current_evaluation else None,
+            "current_evaluation": current,
             "queued_evaluations": [e.copy() for e in _evaluation_queue]
         }
+
+
+def _detect_running_evaluation_from_files():
+    """Detect a running evaluation from status files (for UI restart recovery)."""
+    import json
+    from pathlib import Path
+
+    status_dir = Path(STATUS_FILES_DIR)
+    if not status_dir.exists():
+        return None
+
+    # Find status files with "running" status
+    for status_file in status_dir.glob("evaluation_status_*.json"):
+        try:
+            with open(status_file, 'r') as f:
+                status_data = json.load(f)
+
+            if status_data.get("status") == "running":
+                # Extract ID and name from filename
+                filename = status_file.stem  # removes .json
+                if filename.startswith("evaluation_status_"):
+                    id_part = filename[18:]  # Remove "evaluation_status_"
+                    parts = id_part.split("_", 1)
+                    eval_id = parts[0]
+                    eval_name = parts[1] if len(parts) > 1 else f"Evaluation_{eval_id[:8]}"
+
+                    # Return a minimal evaluation info dict for UI display
+                    return {
+                        "id": eval_id,
+                        "name": eval_name,
+                        "status": "running",
+                        "progress": status_data.get("progress", 0),
+                        "_recovered_from_file": True  # Flag to indicate this was recovered
+                    }
+        except Exception as e:
+            dashboard_logger.debug(f"Could not read status file {status_file}: {e}")
+            continue
+
+    return None
 
 
 
@@ -291,17 +342,31 @@ def run_benchmark_process(eval_id):
             if jsonl_path.exists():
                 dashboard_logger.info(f"JSONL file already exists for {eval_name}, using existing file")
             else:
-                # Convert CSV data to JSONL only if csv_data exists
-                if "csv_data" not in evaluation_config:
-                    error_msg = "Cannot create new evaluation without CSV data. This evaluation may have been created in a previous session."
+                # Try to get csv_data from config or reload from disk
+                csv_data = evaluation_config.get("csv_data")
+
+                # If csv_data is None, try to reload from saved csv_path
+                if csv_data is None:
+                    csv_path = evaluation_config.get("csv_path")
+                    if csv_path and Path(csv_path).exists():
+                        try:
+                            import pandas as pd
+                            csv_data = pd.read_csv(csv_path)
+                            dashboard_logger.info(f"Reloaded CSV data from {csv_path} for retry")
+                        except Exception as e:
+                            dashboard_logger.warning(f"Failed to reload CSV from {csv_path}: {e}")
+
+                # Now check if we have valid csv_data
+                if csv_data is None:
+                    error_msg = "Cannot create new evaluation without CSV data. The source CSV file may have been deleted. Please re-upload the CSV and create a new evaluation."
                     dashboard_logger.error(f"File setup failed for {eval_id}: {error_msg}")
                     _update_status_file(status_file, "failed", 0, error=error_msg)
                     update_evaluation_status(eval_id, "failed", 0, error=error_msg)
                     _cleanup_evaluation_logs(eval_id, preserve_on_failure=True)
                     return False
-                    
+
                 jsonl_path = convert_to_jsonl(
-                    evaluation_config["csv_data"],
+                    csv_data,
                     evaluation_config["prompt_column"],
                     evaluation_config["golden_answer_column"],
                     evaluation_config["task_type"],
@@ -410,18 +475,28 @@ def run_benchmark_process(eval_id):
 
         # Shared progress tracking (thread-safe)
         progress_lock = threading.Lock()
+        experiment_counts = evaluation_config.get("experiment_counts", 1)
         progress_state = {
-            "total_evaluations": 0,
+            "scenarios_per_run": 0,  # Scenarios in a single run
+            "total_evaluations": 0,   # Total across all runs (scenarios_per_run * experiment_counts)
             "completed_evaluations": 0,
+            "current_run": 1,
             "last_update": time.time()
         }
 
         def parse_progress_from_line(line):
             """Extract progress from subprocess log output."""
             with progress_lock:
-                # Extract total: "Expanded to 250 scenarios"
+                # Extract total scenarios per run: "Expanded to 250 scenarios"
                 if match := re.search(r'Expanded to (\d+) scenarios', line):
-                    progress_state["total_evaluations"] = int(match.group(1))
+                    scenarios_per_run = int(match.group(1))
+                    progress_state["scenarios_per_run"] = scenarios_per_run
+                    # Calculate total across all runs
+                    progress_state["total_evaluations"] = scenarios_per_run * experiment_counts
+
+                # Track current run: "=== Run 2/5 (Started: ...)"
+                elif match := re.search(r'Run (\d+)/(\d+)', line):
+                    progress_state["current_run"] = int(match.group(1))
 
                 # Count completions: "Successfully processed: ... invocation N"
                 elif "Successfully processed:" in line:
@@ -488,12 +563,18 @@ def run_benchmark_process(eval_id):
                 with progress_lock:
                     total = progress_state["total_evaluations"]
                     completed = progress_state["completed_evaluations"]
+                    current_run = progress_state.get("current_run", 1)
 
                 if total > 0:
                     progress = min(int((completed / total) * 100), 99)
+                    # Log progress details periodically (every 30 polls = 5 minutes)
+                    if poll_count % 30 == 0:
+                        dashboard_logger.info(f"Progress for {eval_id}: {completed}/{total} ({progress}%) - Run {current_run}/{experiment_counts}")
                 else:
                     # Fallback to time-based estimation if not parsed yet
                     progress = min(poll_count * 2, 90)
+                    if poll_count % 30 == 0:
+                        dashboard_logger.info(f"Progress for {eval_id}: {progress}% (time-based fallback, total not yet parsed)")
 
                 # Update status to show progress (every 10 seconds)
                 _update_status_file(status_file, "running", progress, logs_dir=str(logs_dir))
@@ -847,7 +928,18 @@ def _update_status_file(status_file, status, progress, results=None, logs_dir=No
         status_data["created_at"] = existing_data["created_at"]
     else:
         status_data["created_at"] = time.time()
-    
+
+    # Preserve models_data and judges_data from existing data (important for running evaluations)
+    if existing_data.get("models_data"):
+        status_data["models_data"] = existing_data["models_data"]
+    if existing_data.get("judges_data"):
+        status_data["judges_data"] = existing_data["judges_data"]
+
+    # Preserve evaluation_config from existing data if not provided in this call
+    # This ensures config persists through status transitions (queued -> running -> completed)
+    if existing_data.get("evaluation_config"):
+        status_data["evaluation_config"] = existing_data["evaluation_config"]
+
     # Only include progress for backward compatibility
     if progress is not None:
         status_data["progress"] = progress
@@ -890,6 +982,11 @@ def _update_status_file(status_file, status, progress, results=None, logs_dir=No
             "csv_file_name": evaluation_config.get("csv_file_name"),
             "stream_evaluation": evaluation_config.get("stream_evaluation", True)
         }
+        # Store models and judges data from evaluation_config if not already set
+        if evaluation_config.get("selected_models") and not status_data.get("models_data"):
+            status_data["models_data"] = evaluation_config["selected_models"]
+        if evaluation_config.get("judge_models") and not status_data.get("judges_data"):
+            status_data["judges_data"] = evaluation_config["judge_models"]
 
     with open(status_file, 'w') as f:
         json.dump(status_data, f)

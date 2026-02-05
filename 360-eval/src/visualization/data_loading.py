@@ -158,7 +158,11 @@ def load_data(directory, evaluation_names=None, model_ids=None):
         files = []
         for file_path in all_files:
             file_name = Path(file_path).name
-            if any(eval_name in file_name for eval_name in evaluation_names):
+            # Match evaluation name precisely at the end of filename (before .csv)
+            # Filename format: invocations_{run}_{timestamp}_{hash}_{eval_id}_{eval_name}.csv
+            # Use endswith to avoid substring false positives (e.g., "openai-evaluation"
+            # matching "openai-evaluation-data-extraction")
+            if any(file_name.endswith(f"_{eval_name}.csv") for eval_name in evaluation_names):
                 files.append(file_path)
 
         if not files:

@@ -2,6 +2,7 @@
 HTML report generation for benchmark results.
 """
 
+import ast
 import logging
 import sys
 from pathlib import Path
@@ -331,6 +332,13 @@ def create_regional_performance_analysis(df):
         # AWS GovCloud
         'us-gov-east-1': pytz.timezone('America/New_York'),  # US-East
         'us-gov-west-1': pytz.timezone('America/Los_Angeles'),  # US-West
+
+        # Non-AWS providers (use UTC as default)
+        'openai-region': pytz.UTC,  # OpenAI API
+        'gemini-region': pytz.UTC,  # Google Gemini API
+        'azure-region': pytz.UTC,   # Azure OpenAI
+        'anthropic-region': pytz.UTC,  # Anthropic API
+        'cohere-region': pytz.UTC,  # Cohere API
     }
 
     # df = df[df['model_id'].str.contains('bedrock', case=False, na=False)]
