@@ -8,6 +8,46 @@ from .constants import EPSILON_DIVISION, VALUE_RATIO_MULTIPLIER
 logger = logging.getLogger(__name__)
 
 
+def _build_task_display_name_map(metrics_df):
+    """
+    Pre-compute a mapping from (task_type, config_signature) to display name.
+
+    This avoids O(n²) complexity when generating display names for each row.
+    Instead of filtering the DataFrame inside apply(), we build the mapping once O(n).
+
+    Args:
+        metrics_df: DataFrame with 'task_types' and 'config_signature' columns
+
+    Returns:
+        dict: Mapping of (task_type, config_signature) -> display_name
+    """
+    # Count unique config_signatures per task_type
+    task_config_counts = metrics_df.groupby('task_types')['config_signature'].nunique()
+
+    # Build sorted configs for each task that has multiple configs
+    task_sorted_configs = {}
+    for task in task_config_counts.index:
+        if task_config_counts[task] > 1:
+            configs = sorted(metrics_df[metrics_df['task_types'] == task]['config_signature'].unique())
+            task_sorted_configs[task] = {cfg: idx + 1 for idx, cfg in enumerate(configs)}
+
+    # Build the display name map
+    display_name_map = {}
+    for _, row in metrics_df[['task_types', 'config_signature']].drop_duplicates().iterrows():
+        task = row['task_types']
+        config = row['config_signature']
+
+        if task in task_sorted_configs:
+            # Multiple configs - add numeric suffix
+            config_index = task_sorted_configs[task][config]
+            display_name_map[(task, config)] = f"{task} ({config_index})"
+        else:
+            # Single config - use task name directly
+            display_name_map[(task, config)] = task
+
+    return display_name_map
+
+
 def calculate_metrics_by_model_task(df):
     """Calculate detailed metrics for each model-task-config combination.
 
@@ -63,24 +103,12 @@ def calculate_metrics_by_model_task(df):
     metrics = metrics.rename(columns=rename_dict)
     metrics = metrics.reset_index()
 
-    # Add task_display_name column with disambiguation
-    # Count how many unique config_signatures exist for each task_type
-    task_config_counts = metrics.groupby('task_types')['config_signature'].nunique()
-
-    def generate_task_display_name(row):
-        """Generate display name with numeric suffix if multiple configs exist."""
-        task = row['task_types']
-        if task_config_counts.get(task, 1) > 1:
-            # Multiple configurations exist - need disambiguation
-            # Get all configs for this task, sort them, and find index
-            configs_for_task = sorted(metrics[metrics['task_types'] == task]['config_signature'].unique())
-            config_index = configs_for_task.index(row['config_signature']) + 1
-            return f"{task} ({config_index})"
-        else:
-            # Single configuration - use original name
-            return task
-
-    metrics['task_display_name'] = metrics.apply(generate_task_display_name, axis=1)
+    # Add task_display_name column with disambiguation using pre-computed map (O(n) instead of O(n²))
+    display_name_map = _build_task_display_name_map(metrics)
+    metrics['task_display_name'] = metrics.apply(
+        lambda row: display_name_map[(row['task_types'], row['config_signature'])],
+        axis=1
+    )
     logger.info(f"Generated task display names with disambiguation for {len(metrics)} metric rows")
 
     # Calculate value_ratio only if success_rate exists (360 mode)
@@ -166,23 +194,13 @@ def calculate_metrics_by_model_task_temperature(df):
 
     metrics = metrics.reset_index()
 
-    # Add task_display_name if config_signature exists
+    # Add task_display_name if config_signature exists using pre-computed map (O(n) instead of O(n²))
     if 'config_signature' in metrics.columns:
-        task_config_counts = metrics.groupby('task_types')['config_signature'].nunique()
-
-        def generate_task_display_name(row):
-            """Generate display name with numeric suffix if multiple configs exist."""
-            task = row['task_types']
-            if task_config_counts.get(task, 1) > 1:
-                # Multiple configurations exist - need disambiguation
-                configs_for_task = sorted(metrics[metrics['task_types'] == task]['config_signature'].unique())
-                config_index = configs_for_task.index(row['config_signature']) + 1
-                return f"{task} ({config_index})"
-            else:
-                # Single configuration - use original name
-                return task
-
-        metrics['task_display_name'] = metrics.apply(generate_task_display_name, axis=1)
+        display_name_map = _build_task_display_name_map(metrics)
+        metrics['task_display_name'] = metrics.apply(
+            lambda row: display_name_map[(row['task_types'], row['config_signature'])],
+            axis=1
+        )
         logger.info(f"Generated task display names for temperature metrics: {len(metrics)} rows")
 
     return metrics

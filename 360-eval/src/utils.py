@@ -7,6 +7,9 @@ import os
 import random
 import logging
 import base64
+import hashlib
+from functools import lru_cache
+from threading import Lock
 import litellm
 import requests
 import requests.exceptions
@@ -19,6 +22,99 @@ litellm.drop_params = True
 # litellm.set_verbose = True
 
 logger = logging.getLogger(__name__)
+
+# ----------------------------------------
+# Token Counting Cache
+# ----------------------------------------
+
+_token_cache_lock = Lock()
+_token_cache_stats = {"hits": 0, "misses": 0}
+
+
+@lru_cache(maxsize=1024)
+def _cached_token_count(model: str, content_hash: str, content: str) -> int:
+    """
+    LRU-cached token counting implementation.
+
+    Args:
+        model: Model identifier for token counting
+        content_hash: SHA-256 hash of content (used as cache key)
+        content: The actual content to count tokens for
+
+    Returns:
+        Token count for the content
+    """
+    # content_hash is used for cache key deduplication, actual counting uses content
+    return token_counter(model=model, messages=[{"user": "role", "content": content}])
+
+
+def cached_token_counter(model: str, content: str) -> int:
+    """
+    Thread-safe cached token counter.
+
+    Caches token counts based on model and content hash to avoid
+    redundant API calls for the same content.
+
+    Args:
+        model: Model identifier for token counting
+        content: The content to count tokens for
+
+    Returns:
+        Token count for the content
+    """
+    # Generate SHA-256 hash of content for cache key
+    content_hash = hashlib.sha256(content.encode('utf-8')).hexdigest()
+
+    with _token_cache_lock:
+        # Check if this would be a cache hit by examining cache info
+        cache_info_before = _cached_token_count.cache_info()
+
+    try:
+        result = _cached_token_count(model, content_hash, content)
+
+        with _token_cache_lock:
+            cache_info_after = _cached_token_count.cache_info()
+            if cache_info_after.hits > cache_info_before.hits:
+                _token_cache_stats["hits"] += 1
+            else:
+                _token_cache_stats["misses"] += 1
+
+        return result
+    except Exception as e:
+        logger.warning(f"Cached token counter failed, falling back to direct call: {e}")
+        # Fall back to direct token_counter call
+        return token_counter(model=model, messages=[{"user": "role", "content": content}])
+
+
+def get_token_cache_stats() -> dict:
+    """
+    Get token cache statistics for monitoring.
+
+    Returns:
+        dict with 'hits', 'misses', 'hit_rate', and 'cache_info'
+    """
+    with _token_cache_lock:
+        hits = _token_cache_stats["hits"]
+        misses = _token_cache_stats["misses"]
+        total = hits + misses
+        hit_rate = (hits / total * 100) if total > 0 else 0.0
+
+        return {
+            "hits": hits,
+            "misses": misses,
+            "total": total,
+            "hit_rate": round(hit_rate, 2),
+            "cache_info": _cached_token_count.cache_info()._asdict()
+        }
+
+
+def clear_token_cache():
+    """Clear the token counting cache and reset statistics."""
+    with _token_cache_lock:
+        _cached_token_count.cache_clear()
+        _token_cache_stats["hits"] = 0
+        _token_cache_stats["misses"] = 0
+    logger.info("Token cache cleared")
 
 # ----------------------------------------
 # Prompt Optimization Configuration
@@ -852,11 +948,11 @@ def run_inference(model_name: str,
             total_runtime = end - start_time
             actual_response = "".join(response_chunks)
             thinking_response = "".join(thinking_chunks)
-            # Token counting with error handling
+            # Token counting with error handling (using cached counter for performance)
             try:
                 counter_id = model_name.replace('converse/', '')  # Converse is needed for inference only
-                output_tokens = token_counter(model=counter_id, messages=[{"user": "role", "content": thinking_response + actual_response}])
-                input_tokens = token_counter(model=counter_id, messages=[{"user": "role", "content": prompt_text}])
+                output_tokens = cached_token_counter(model=counter_id, content=thinking_response + actual_response)
+                input_tokens = cached_token_counter(model=counter_id, content=prompt_text)
             except Exception as e:
                 logger.error(f"Error counting tokens: {str(e)}")
                 output_tokens = 0.0000001

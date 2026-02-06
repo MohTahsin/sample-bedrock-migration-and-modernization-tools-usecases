@@ -118,7 +118,7 @@ def evaluate_with_llm_judge(judge_model_id,
 
 
 # ----------------------------------------
-# Multi‑judge + majority‑vote
+# Multi‑judge + majority‑vote (parallelized)
 # ----------------------------------------
 def evaluate_with_judges(judges,
                          prompt,
@@ -128,8 +128,16 @@ def evaluate_with_judges(judges,
                          task_criteria,
                          user_defined_metrics,
                          yard_stick=3):
+    """
+    Evaluate model response using multiple LLM judges in parallel.
+
+    Each judge evaluation is independent and thread-safe, allowing parallel execution
+    for ~3x speedup with 3 judges. Results are aggregated using majority voting.
+    """
     results = []
-    for j in judges:
+
+    def evaluate_single_judge(j):
+        """Evaluate with a single judge - thread-safe inner function."""
         try:
             logging.debug(f"Evaluating with judge model {j['model_id']}")
             # Model ID preparation for litellm is now handled centrally in run_inference()
@@ -150,26 +158,25 @@ def evaluate_with_judges(judges,
                     "judgment") == "Error Parsing response":
                 logging.warning(
                     f"Judge {j['model_id']} returned an error response: {r.get('explanation', 'Unknown error')}")
-                results.append({"model": j["model_id"], **r})
-                continue
+                return {"model": j["model_id"], **r}
 
             # Check if scores are valid
             if not r.get("scores") or r.get("scores", {}).get("score") == "NULL":
                 logging.warning(f"Judge {j['model_id']} returned invalid scores: {r.get('scores', 'None')}")
-                results.append({"model": j["model_id"], **r})
-                continue
+                return {"model": j["model_id"], **r}
 
             # Defensive cost calculation with defaults
             judge_input_tokens = r.get("judge_input_tokens", 0)
             judge_output_tokens = r.get("judge_output_tokens", 0)
             r['judge_input_token_cost'] = judge_input_tokens * (j["input_cost_per_1k"] / 1000)
             r['judge_output_token_cost'] = judge_output_tokens * (j["output_cost_per_1k"] / 1000)
-            results.append({"model": j["model_id"], **r})
             logging.debug(
                 f"Successfully evaluated with judge {j['model_id']}, judgment: {r.get('judgment', 'Unknown')}")
+            return {"model": j["model_id"], **r}
+
         except Exception as e:
             logging.error(f"Exception evaluating with judge {j['model_id']}: {str(e)}", exc_info=True)
-            results.append({
+            return {
                 "model": j["model_id"],
                 "judgment": "Judge Exception",
                 "explanation": str(e),
@@ -177,7 +184,45 @@ def evaluate_with_judges(judges,
                 "judge_input_tokens": 0,
                 "judge_output_tokens": 0,
                 "error_type": "judge_exception"
-            })
+            }
+
+    # Handle edge case of empty judges list
+    if not judges:
+        return {"majority_judgment": "FAIL", "majority_explanations": [], "judge_details": [],
+                "majority_score": {}, "eval_cost": 0}
+
+    # Execute judge evaluations in parallel with timeout
+    # Use max_workers equal to number of judges since each judge is independent
+    with ThreadPoolExecutor(max_workers=len(judges)) as executor:
+        future_to_judge = {executor.submit(evaluate_single_judge, j): j for j in judges}
+
+        for future in concurrent.futures.as_completed(future_to_judge, timeout=120):
+            judge = future_to_judge[future]
+            try:
+                result = future.result(timeout=120)  # 120-second timeout per judge
+                results.append(result)
+            except concurrent.futures.TimeoutError:
+                logging.error(f"Judge {judge['model_id']} timed out after 120 seconds")
+                results.append({
+                    "model": judge["model_id"],
+                    "judgment": "Judge Exception",
+                    "explanation": "Timeout after 120 seconds",
+                    "scores": {"score": "NULL"},
+                    "judge_input_tokens": 0,
+                    "judge_output_tokens": 0,
+                    "error_type": "timeout"
+                })
+            except Exception as e:
+                logging.error(f"Exception getting result for judge {judge['model_id']}: {str(e)}", exc_info=True)
+                results.append({
+                    "model": judge["model_id"],
+                    "judgment": "Judge Exception",
+                    "explanation": str(e),
+                    "scores": {"score": "NULL"},
+                    "judge_input_tokens": 0,
+                    "judge_output_tokens": 0,
+                    "error_type": "judge_exception"
+                })
 
     pass_ct = sum(1 for r in results if r.get("judgment") == "PASS")
     fail_ct = sum(1 for r in results if r.get("judgment") == "FAIL")
@@ -254,16 +299,22 @@ def benchmark(
                           stream=stream_evaluation,
                           vision_enabled=vision_enabled)
 
-        resp_txt = r['model_response']
-        thinking_response = r['thinking_response']
-        input_tokens = r['input_tokens']
-        output_tokens = r['output_tokens']
-        total_runtime = r['total_runtime']
-        time_to_first_byte = r['time_to_first_byte']
-        time_to_last_byte = r['time_to_last_byte']
-        throughput_tps = r['throughput_tps']
-        cost = r['total_cost']
-        inference_request_count = r['retry_count']
+        # Check for partial/error responses from inference
+        if r.get('partial_result'):
+            logging.warning(f"Partial response received for {model_id}: {r.get('error', 'Unknown error')}")
+            status = f"PartialResponse: {r.get('error_type', 'Unknown')}"
+            err_code = "PARTIAL_RESPONSE"
+
+        resp_txt = r.get('model_response', '')
+        thinking_response = r.get('thinking_response', '')
+        input_tokens = r.get('input_tokens', 0)
+        output_tokens = r.get('output_tokens', 0)
+        total_runtime = r.get('total_runtime', 0)
+        time_to_first_byte = r.get('time_to_first_byte', 0)
+        time_to_last_byte = r.get('time_to_last_byte', 0)
+        throughput_tps = r.get('throughput_tps', 0)
+        cost = r.get('total_cost', 0)
+        inference_request_count = r.get('retry_count', 0)
 
         if resp_txt:
             if latency_only_mode:
@@ -292,7 +343,11 @@ def benchmark(
                 perf["judge_scores"] = multi["majority_score"]
                 evaluation_cost_data = multi["eval_cost"]
         else:
+            # Empty response - set explicit error status
             logging.error(f"Target model error: Model {model_id} returned an empty output.")
+            if status == "Success":  # Only override if no prior error
+                status = "EmptyResponse: Model returned no output"
+                err_code = "EMPTY_RESPONSE"
 
     except ClientError as err:
         # Log detailed error BEFORE converting to status string
@@ -339,6 +394,12 @@ def benchmark(
         status = f"{type(e).__name__}: {str(e)}"
         err_code = type(e).__name__.upper()
 
+    # Extract flattened error info for easier CSV querying
+    judge_details = perf.get("judge_details", [])
+    has_judge_error = any(j.get("error_type") for j in judge_details) if judge_details else False
+    judge_error_types = list(set(j.get("error_type") for j in judge_details if j.get("error_type"))) if has_judge_error else []
+    failed_judge_models = [j.get("model") for j in judge_details if j.get("error_type")] if has_judge_error else []
+
     return {
         "time_to_first_byte": time_to_first_byte,
         "time_to_last_byte": time_to_last_byte,
@@ -356,7 +417,11 @@ def benchmark(
         "inference_request_count": inference_request_count,
         "eval_type": "latency" if latency_only_mode else "360",
         "stream": stream_evaluation,
-        "thinking_response": thinking_response
+        "thinking_response": thinking_response,
+        # Flattened error fields for easier CSV querying
+        "has_judge_error": has_judge_error,
+        "judge_error_types": ";".join(judge_error_types) if judge_error_types else None,
+        "failed_judges": ";".join(failed_judge_models) if failed_judge_models else None,
     }
 
 
@@ -468,10 +533,8 @@ def execute_benchmark(scenarios, cfg, unprocessed_dir, yard_stick=3, latency_onl
                 has_api_error = r["api_call_status"] != "Success" or r["error_code"] is not None
                 # In latency-only mode, empty judge_details is expected and not an error
                 has_no_evaluation = (not latency_only_mode) and (not perf or not judge_details)
-                has_judge_errors = any(
-                    j.get("error_type") in ["inference_failure", "parsing_failure", "judge_exception", "json_not_found"]
-                    for j in judge_details
-                ) if judge_details else False
+                # Use the flattened has_judge_error field from benchmark() result
+                has_judge_errors = r.get("has_judge_error", False)
 
                 if has_api_error or has_no_evaluation or has_judge_errors:
                     # Determine failure reason and error classification for better context
@@ -482,8 +545,10 @@ def execute_benchmark(scenarios, cfg, unprocessed_dir, yard_stick=3, latency_onl
                         reason = "Evaluation failure: No judge evaluation performed"
                         error_classification = "evaluation_missing"
                     else:
-                        failed_judges = [j.get("model") for j in judge_details if j.get("error_type")]
-                        reason = f"Jurors evaluation failure: {', '.join(failed_judges)}"
+                        # Use flattened fields for cleaner error reporting
+                        failed_judges = r.get("failed_judges", "Unknown")
+                        judge_error_types = r.get("judge_error_types", "Unknown")
+                        reason = f"Judge evaluation failure: {failed_judges} ({judge_error_types})"
                         error_classification = "judge_failure"
 
                     logging.warning(
@@ -503,6 +568,9 @@ def execute_benchmark(scenarios, cfg, unprocessed_dir, yard_stick=3, latency_onl
                         "error_classification": error_classification,
                         "timestamp": get_timestamp(),
                         "invocation": invocation,
+                        # Use flattened error fields for cleaner unprocessed records
+                        "failed_judges": r.get("failed_judges"),
+                        "judge_error_types": r.get("judge_error_types"),
                         "judge_errors": [
                             {
                                 "judge": j.get("model"),

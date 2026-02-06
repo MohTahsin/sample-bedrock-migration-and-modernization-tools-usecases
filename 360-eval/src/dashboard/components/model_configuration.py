@@ -428,6 +428,7 @@ class ModelConfigurationComponent:
         """Add a model to the selected models list.
 
         For Bedrock models, adds the model with the specified service tier.
+        For non-Bedrock models, uses provider-specific region (e.g., "openai-region").
         """
         # For Bedrock models, use the selected tier; for others, set to None
         if prefix == "bedrock":
@@ -437,6 +438,13 @@ class ModelConfigurationComponent:
         else:
             tier = None
             tier_label = None
+            # For non-Bedrock models, derive region from model prefix
+            # e.g., "openai/gpt-5-mini" -> "openai-region"
+            if "/" in model_id:
+                provider = model_id.split("/")[0]
+                region = f"{provider}-region"
+            else:
+                region = f"{prefix}-region"
 
         # Check if this model+region+tier combination already exists
         existing_model = None

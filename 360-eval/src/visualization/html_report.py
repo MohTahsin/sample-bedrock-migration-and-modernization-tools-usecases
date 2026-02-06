@@ -2,6 +2,7 @@
 HTML report generation for benchmark results.
 """
 
+import ast
 import logging
 import sys
 from pathlib import Path
@@ -331,26 +332,29 @@ def create_regional_performance_analysis(df):
         # AWS GovCloud
         'us-gov-east-1': pytz.timezone('America/New_York'),  # US-East
         'us-gov-west-1': pytz.timezone('America/Los_Angeles'),  # US-West
+        # Note: Non-AWS regions (openai-region, grok-region, fireworks-region, etc.)
+        # are not listed here - they automatically default to UTC in get_local_time()
     }
 
     # df = df[df['model_id'].str.contains('bedrock', case=False, na=False)]
     # Add local time information
     def get_local_time(row):
-        if row['region'] in region_timezones:
-            try:
-                # Parse ISO timestamp
-                utc_time = datetime.strptime(row['job_timestamp_iso'], '%Y-%m-%dT%H:%M:%SZ')
-                utc_time = utc_time.replace(tzinfo=pytz.UTC)
-                # Convert to local time
-                local_time = utc_time.astimezone(region_timezones[row['region']])
-                # Return formatted time and hour for grouping
-                return pd.Series({
-                    'local_time': local_time.strftime('%H:%M:%S'),
-                    'hour_of_day': local_time.hour
-                })
-            except (ValueError, TypeError):
-                return pd.Series({'local_time': 'Unknown', 'hour_of_day': -1})
-        return pd.Series({'local_time': 'Unknown', 'hour_of_day': -1})
+        # Get timezone for region, defaulting to UTC for non-AWS providers
+        # (e.g., openai-region, grok-region, fireworks-region, etc.)
+        tz = region_timezones.get(row['region'], pytz.UTC)
+        try:
+            # Parse ISO timestamp
+            utc_time = datetime.strptime(row['job_timestamp_iso'], '%Y-%m-%dT%H:%M:%SZ')
+            utc_time = utc_time.replace(tzinfo=pytz.UTC)
+            # Convert to local time (or UTC for non-AWS regions)
+            local_time = utc_time.astimezone(tz)
+            # Return formatted time and hour for grouping
+            return pd.Series({
+                'local_time': local_time.strftime('%H:%M:%S'),
+                'hour_of_day': local_time.hour
+            })
+        except (ValueError, TypeError):
+            return pd.Series({'local_time': 'Unknown', 'hour_of_day': -1})
 
     # Add local time columns
     time_data = df.apply(get_local_time, axis=1)

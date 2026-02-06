@@ -493,6 +493,7 @@ class EvaluationSetupComponent:
             # Experiment wait time dropdown
             wait_time_options = {
                 "No wait (0 minutes)": 0,
+                "15 minutes": 900,
                 "30 minutes": 1800,
                 "1 hour": 3600,
                 "1.5 hours": 5400,
@@ -500,7 +501,7 @@ class EvaluationSetupComponent:
                 "2.5 hours": 9000,
                 "3 hours": 10800
             }
-            
+
             # Find current selection
             current_wait_time = st.session_state.current_evaluation_config.get("experiment_wait_time", 0)
             current_selection = "No wait (0 minutes)"
@@ -542,6 +543,7 @@ class EvaluationSetupComponent:
         """Update experiment wait time based on dropdown selection."""
         wait_time_options = {
             "No wait (0 minutes)": 0,
+            "15 minutes": 900,
             "30 minutes": 1800,
             "1 hour": 3600,
             "1.5 hours": 5400,
