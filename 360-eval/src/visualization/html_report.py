@@ -91,14 +91,14 @@ def create_integrated_analysis_table(model_task_metrics):
     Creates interactive tables for each task with distance-from-best color coding.
     Colors are based on how far each model is from the best performer.
     """
-    # Define colors - now with more gradations for distance-based coloring
+    # Define colors - AWS-inspired tones (vivid)
     colors = {
         'best': '#2ecc71',      # Dark green - the best performer
         'excellent': '#52d68a',  # Medium green - within 5% of best
-        'good': '#c6efce',      # Light green - within 10% of best
-        'medium': '#ffffcc',    # Yellow - within 20% of best
+        'good': 'rgba(46, 196, 182, 1)',       # AWS Teal - good performance
+        'medium': 'rgba(255, 153, 0, 0.9)',    # AWS Orange - medium performance
         'below': '#ffd4a3',     # Orange - within 30% of best
-        'poor': '#ffcccc'       # Light red - more than 30% behind
+        'poor': 'rgba(214, 95, 118, 1)'        # Muted rose - poor performance
     }
 
     # Initialize task_tables dictionary and thresholds
@@ -174,7 +174,7 @@ def create_integrated_analysis_table(model_task_metrics):
         # Create table cells with conditional formatting
         # Prepare headers and values based on mode
         if has_success_rate:
-            header_values = ['Model', 'Task Type', 'Success Rate', 'Latency', 'Cost', 'Tokens/sec', 'Score']
+            header_values = ['Model', 'Task Type', 'Accuracy', 'Latency', 'Cost', 'Tokens/sec', 'Score']
             cell_values = [
                 task_data['model_name'],
                 task_data['task_display_name'],
@@ -185,8 +185,8 @@ def create_integrated_analysis_table(model_task_metrics):
                 task_data['composite_score'].apply(lambda x: f"{x:.2f}")
             ]
             fill_colors = [
-                ['#3a3a3a'] * len(task_data),  # Model column (dark gray)
-                ['#3a3a3a'] * len(task_data),  # Task column (dark gray)
+                ['#232f3e'] * len(task_data),  # Model column (AWS squid-ink)
+                ['#232f3e'] * len(task_data),  # Task column (AWS squid-ink)
                 [get_color(sr, 'success_rate') for sr in task_data['success_rate']],
                 [get_color(lt, 'avg_latency') for lt in task_data[['avg_latency','task_types']].to_dict(orient='records')],
                 [get_color(cost, 'avg_cost') for cost in task_data['avg_cost']],
@@ -196,13 +196,13 @@ def create_integrated_analysis_table(model_task_metrics):
                  colors['poor'] for score in task_data['composite_score']]
             ]
             font_colors = [
-                ['white'] * len(task_data),  # Model column
-                ['white'] * len(task_data),  # Task column
-                ['black'] * len(task_data),  # Success rate
-                ['black'] * len(task_data),  # Latency
-                ['black'] * len(task_data),  # Cost
-                ['black'] * len(task_data),  # Tokens/sec
-                ['black'] * len(task_data),  # Score
+                ['#f2f3f3'] * len(task_data),
+                ['#f2f3f3'] * len(task_data),
+                ['#161e2d'] * len(task_data),
+                ['#161e2d'] * len(task_data),
+                ['#161e2d'] * len(task_data),
+                ['#161e2d'] * len(task_data),
+                ['#161e2d'] * len(task_data),
             ]
         else:
             # Latency-only mode: skip success rate column
@@ -216,8 +216,8 @@ def create_integrated_analysis_table(model_task_metrics):
                 task_data['composite_score'].apply(lambda x: f"{x:.2f}")
             ]
             fill_colors = [
-                ['#3a3a3a'] * len(task_data),  # Model column (dark gray)
-                ['#3a3a3a'] * len(task_data),  # Task column (dark gray)
+                ['#232f3e'] * len(task_data),  # Model column (AWS squid-ink)
+                ['#232f3e'] * len(task_data),  # Task column (AWS squid-ink)
                 [get_color(lt, 'avg_latency') for lt in task_data[['avg_latency','task_types']].to_dict(orient='records')],
                 [get_color(cost, 'avg_cost') for cost in task_data['avg_cost']],
                 [get_color(tps, 'avg_otps') for tps in task_data['avg_otps']],
@@ -226,40 +226,44 @@ def create_integrated_analysis_table(model_task_metrics):
                  colors['poor'] for score in task_data['composite_score']]
             ]
             font_colors = [
-                ['white'] * len(task_data),  # Model column
-                ['white'] * len(task_data),  # Task column
-                ['black'] * len(task_data),  # Latency
-                ['black'] * len(task_data),  # Cost
-                ['black'] * len(task_data),  # Tokens/sec
-                ['black'] * len(task_data),  # Score
+                ['#f2f3f3'] * len(task_data),
+                ['#f2f3f3'] * len(task_data),
+                ['#161e2d'] * len(task_data),
+                ['#161e2d'] * len(task_data),
+                ['#161e2d'] * len(task_data),
+                ['#161e2d'] * len(task_data),
             ]
 
+        # Calculate height based on number of rows (header + rows)
+        row_height = 28  # pixels per row
+        header_height = 30  # header row height
+        total_height = header_height + (len(task_data) * row_height)
+
+        # Use AWS-inspired header color with explicit heights
         fig.add_trace(go.Table(
             header=dict(
                 values=header_values,
-                font=dict(size=12, color='white'),
-                fill_color='#2E5A88',
-                align='left'
+                font=dict(size=12, color='#ff9900'),
+                fill_color='#232f3e',
+                align='left',
+                line_color='#2a3f5f',
+                height=header_height  # Explicit height to match calculation
             ),
             cells=dict(
                 values=cell_values,
                 align='left',
                 font=dict(size=11),
                 fill_color=fill_colors,
-                font_color=font_colors
+                font_color=font_colors,
+                line_color='#2a3f5f',
+                height=row_height  # Explicit height to match calculation
             )
         ))
 
-        # Update layout with dark theme and dynamic height
-        # Calculate height based on number of rows (header + rows)
-        row_height = 35  # pixels per row
-        header_height = 40  # header row height
-        total_height = header_height + (len(task_data) * row_height)
-
         fig.update_layout(
             template="plotly_dark",
-            paper_bgcolor="#1e1e1e",
-            plot_bgcolor="#2d2d2d",
+            paper_bgcolor="rgba(22, 30, 45, 0.9)",
+            plot_bgcolor="rgba(35, 47, 62, 0.8)",
             margin=dict(l=0, r=0, t=0, b=0),
             height=total_height
         )
@@ -372,7 +376,9 @@ def create_regional_performance_analysis(df):
         'local_time': lambda x: x.iloc[0] if not x.empty else 'Unknown'
     }).reset_index()
 
-    regional_metrics['average_input_output_token_size'] = regional_metrics['average_input_output_token_size'].round(1).astype("string")
+    # Keep numeric version for bubble sizing, create formatted string version for display
+    regional_metrics['token_size_numeric'] = regional_metrics['average_input_output_token_size'].round(1)
+    regional_metrics['average_input_output_token_size'] = regional_metrics['token_size_numeric'].astype("string")
     # Calculate time of day periods
     def get_time_period(hour):
         if hour == -1:
@@ -399,58 +405,110 @@ def create_regional_performance_analysis(df):
             (1 - (regional_metrics['response_cost'] / max_cost))
     )
 
-    regional_metrics['composite_label'] = regional_metrics['region'] + "<br>Mean of Total Token Size: " + regional_metrics['average_input_output_token_size']
+    # Label shows region and task type (lowercase, no parentheses)
+    regional_metrics['composite_label'] = regional_metrics['region'] + ' ' + regional_metrics['task_types'].str.lower()
 
     # Normalize the composite score
     min_score = regional_metrics['composite_score'].min()
     max_score = regional_metrics['composite_score'].max()
     regional_metrics['normalized_score'] = (regional_metrics['composite_score'] - min_score) / (max_score - min_score)
 
-    # Create a figure with two subplots: latency vs cost, and time of day analysis
-    fig = make_subplots(
-        rows=2,
-        cols=1,
-        subplot_titles=("Latency vs Cost by Region", 'Hourly Performance by Region<br><span style="font-size: 12px;">Using μ (Micro) Symbol for Small Numbers</span>'),
-        vertical_spacing=0.30,  # Increased for more space between plots
-        specs=[[{"type": "scatter"}], [{"type": "bar"}]],
+    # Calculate min and max token size for bubble scaling
+    min_tokens = regional_metrics['token_size_numeric'].min()
+    max_tokens = regional_metrics['token_size_numeric'].max()
+    token_range = max_tokens - min_tokens if max_tokens != min_tokens else 1
+
+    # Create bubble size scale based on token size (15-60 range for visibility)
+    regional_metrics['size_values'] = 15 + ((regional_metrics['token_size_numeric'] - min_tokens) / token_range) * 45
+
+    # === FIGURE 1: Latency vs Cost Scatter Plot ===
+    fig_scatter = go.Figure()
+
+    # Add scatter traces for each region-task combination (enables legend toggling)
+    # AWS-inspired colors with slightly faded/muted tones (dynamic - cycles if more tasks)
+    aws_colors = [
+        'rgba(255, 153, 0, 0.75)',    # AWS Orange (faded)
+        'rgba(0, 161, 201, 0.75)',    # AWS Teal/Cyan
+        'rgba(46, 196, 182, 0.75)',   # Teal Light
+        'rgba(236, 114, 17, 0.75)',   # AWS Orange Dark
+        'rgba(0, 115, 187, 0.75)',    # AWS Blue
+        'rgba(138, 186, 71, 0.75)',   # AWS Green
+        'rgba(214, 95, 118, 0.75)',   # Muted Rose
+        'rgba(155, 89, 182, 0.75)',   # Muted Purple
+        'rgba(52, 152, 219, 0.75)',   # Light Blue
+        'rgba(230, 126, 34, 0.75)',   # Carrot Orange
+        'rgba(22, 160, 133, 0.75)',   # Dark Teal
+        'rgba(192, 57, 43, 0.75)',    # Muted Red
+    ]
+    for idx, row in regional_metrics.iterrows():
+        color_idx = list(regional_metrics.index).index(idx) % len(aws_colors)
+        scatter = go.Scatter(
+            x=[row['time_to_last_byte']],
+            y=[row['response_cost']],
+            mode='markers+text',
+            marker=dict(
+                size=row['size_values'],
+                color=aws_colors[color_idx],
+                line=dict(width=1, color='#232f3e')
+            ),
+            text=[row['composite_label']],
+            textposition="top center",
+            textfont=dict(size=10),
+            hovertemplate=
+            f"<b>{row['composite_label']}</b><br>" +
+            f"Latency: {row['time_to_last_byte']:.2f}s<br>" +
+            f"Cost: ${row['response_cost']:.4f}<br>" +
+            f"Mean Token Size: {row['average_input_output_token_size']}<br>" +
+            f"Local Time at Inference: {row['local_time']}<br>" +
+            f"Time Period: {row['time_period']}<br><extra></extra>",
+            name=row['composite_label'],
+            showlegend=True
+        )
+        fig_scatter.add_trace(scatter)
+
+    # Get best region for recommendation
+    best_region_idx = regional_metrics['composite_score'].idxmax()
+    best_region = regional_metrics.loc[best_region_idx]
+
+    # Add recommendation annotation
+    fig_scatter.add_annotation(
+        x=0.5,
+        y=1.12,
+        xref="paper",
+        yref="paper",
+        text=f"<b>Recommendation:</b> {best_region['region']} performed best with {str(round(best_region['throughput_tps'],3))} TPS at {best_region['local_time']} local time ({best_region['time_period']})",
+        showarrow=False,
+        font=dict(size=13, color="#232f3e"),
+        bgcolor="rgba(255, 153, 0, 0.9)",
+        bordercolor="#ec7211",
+        borderwidth=2,
+        borderpad=8,
+        align="center"
     )
 
-    fig.update_layout(template="plotly_dark")
-
-    # Calculate min and max for scaling
-    min_count = regional_metrics['inference_request_count'].min()
-    max_count = regional_metrics['inference_request_count'].max()
-
-    # Create a more dramatic size scale (20-100 instead of default)
-    size_values = 20 + ((regional_metrics['inference_request_count'] - min_count) / (((max_count - min_count) * 50) + 1))
-
-    # Add scatter plot for latency vs cost
-    scatter = go.Scatter(
-        x=regional_metrics['time_to_last_byte'],
-        y=regional_metrics['response_cost'],
-        mode='markers+text',
-        marker=dict(
-            size=size_values, #Size based on success rate
-            # size=regional_metrics['inference_request_count'] * 50,
-            color=regional_metrics['composite_score'],
-            colorscale='Viridis',
-            colorbar=dict(title="Composite Score", y=0.75, len=0.5),  # Positioned in top half
-            showscale=True
-        ),
-        text=regional_metrics['composite_label'],
-        textposition="top center",
-        hovertemplate=
-        '<b>%{text}</b><br>' +
-        'Latency: %{x:.2f}s<br>' +
-        'Cost: $%{y:.4f}<br>' +
-        'Average Number of Retries: ' + regional_metrics['inference_request_count'].apply(lambda x: str(round(x,2)))+ '<br>' +
-        'Local Time at Inference: ' + regional_metrics['local_time'] + '<br>' +
-        'Time Period: ' + regional_metrics['time_period'] + '<br>',
-        name='',
-        showlegend=False
+    fig_scatter.update_layout(
+        title="Latency vs Cost by Region Across All Tasks",
+        template="plotly_dark",
+        paper_bgcolor="#161e2d",
+        plot_bgcolor="#232f3e",
+        height=500,
+        margin=dict(t=100, b=60, r=200),
+        xaxis_title="Average Latency (Secs)",
+        yaxis_title="Average Cost (USD)",
+        legend=dict(
+            title=dict(text='Region + Task'),
+            y=0.5,
+            x=1.02,
+            xanchor='left',
+            yanchor='middle',
+            bgcolor='rgba(22, 30, 45, 0.8)',
+            bordercolor='#2a3f5f',
+            borderwidth=1
+        )
     )
 
-    fig.add_trace(scatter, row=1, col=1)
+    # === FIGURE 2: Hourly Performance Bar Chart ===
+    fig_hourly = go.Figure()
 
     # Group data by region and hour for hourly analysis
     hourly_data = df.groupby(['region', 'hour_of_day']).agg({
@@ -463,7 +521,6 @@ def create_regional_performance_analysis(df):
     # Add bar chart for hourly performance
     for region in regional_metrics['region'].unique():
         region_data = hourly_data[hourly_data['region'] == region]
-        #### EQUALIZE N OF TASKS AND DATA PER REGION
         if not region_data.empty:
             bar = go.Bar(
                 x=region_data['hour_of_day'],
@@ -475,70 +532,38 @@ def create_regional_performance_analysis(df):
                 'Region Inference Hour: %{x}:00<br>' +
                 'Tokens Per Second: %{y:.2f}<br>' +
                 'Avg Latency: ' + region_data['time_to_last_byte'].apply(lambda x: f"{x:.2f}s") + '<br>' +
-                'Region: ' +  region_data['region']
+                'Region: ' + region_data['region']
             )
+            fig_hourly.add_trace(bar)
 
-            fig.add_trace(bar, row=2, col=1)
-
-    # Update layout with more spacing
-    fig.update_layout(
-        paper_bgcolor="#1e1e1e",
-        plot_bgcolor="#2d2d2d",  # Slightly lighter than paper for contrast
-
-        template="plotly_dark",  # Use the built-in dark template as a base
-        title={
-            'text': 'Regional Performance Analysis with Time of Day',
-            'y': 0.98,  # Position title a bit lower from top
-            'x': 0.5,
-            'xanchor': 'center',
-            'yanchor': 'top'
-        },
-        height=1000,  # Increased height
-        legend_title_text='Region',
-        # showlegend=False,
-        margin=dict(t=150, b=150),   # More top and bottom margin
-    legend=dict(
-        y=0.30,  # Adjust this value to position the legend vertically (0.35 is approximately at the bottom subplot)
-        x=1.05,  # Position legend to the right of the plot
-        xanchor='left',  # Anchor legend to its left side
-        yanchor='middle',  # Center legend vertically at the specified y position
-        orientation='v'  # Arrange legend items vertically
+    fig_hourly.update_layout(
+        title='Hourly Performance by Region<br><span style="font-size: 12px;">Using μ (Micro) Symbol for Small Numbers</span>',
+        template="plotly_dark",
+        paper_bgcolor="#161e2d",
+        plot_bgcolor="#232f3e",
+        height=450,
+        margin=dict(t=80, b=60, r=200),
+        xaxis=dict(
+            title="Hour of Day (24-hour format)",
+            tickmode='array',
+            tickvals=list(range(0, 24, 3)),
+            ticktext=[f"{h}:00" for h in range(0, 24, 3)]
+        ),
+        yaxis_title="Throughput (TPS)",
+        legend=dict(
+            title=dict(text='Region'),
+            y=0.5,
+            x=1.02,
+            xanchor='left',
+            yanchor='middle',
+            bgcolor='rgba(22, 30, 45, 0.8)',
+            bordercolor='#2a3f5f',
+            borderwidth=1
+        ),
+        barmode='group'
     )
-    )
 
-    # Update x and y axes
-    fig.update_xaxes(title_text="Average Latency (Secs)", row=1, col=1)
-    fig.update_yaxes(title_text="Average Cost (USD)", row=1, col=1)
-
-    fig.update_xaxes(
-        title_text="Hour of Day (24-hour format)",
-        tickmode='array',
-        tickvals=list(range(0, 24, 3)),
-        ticktext=[f"{h}:00" for h in range(0, 24, 3)],
-        row=2, col=1
-    )
-    fig.update_yaxes(title_text="Throughput (TPS)", row=2, col=1)
-
-    # Add recommendations based on data
-    best_region_idx = regional_metrics['composite_score'].idxmax()
-    best_region = regional_metrics.loc[best_region_idx]
-
-    # Add annotations with recommendations - positioned with better spacing
-    fig.add_annotation(
-        x=0.5,
-        y=0.99,  # Positioned right below title
-        xref="paper",
-        yref="paper",
-        text=f"<b>Recommendation:</b> {best_region['region']} performed best with {str(round(best_region['throughput_tps'],3))} Tokens Per Second {best_region['local_time']} local time ({best_region['time_period']})",
-        showarrow=False,
-        font=dict(size=14, color="darkgreen"),
-        bgcolor="rgba(200, 240, 200, 0.6)",
-        bordercolor="green",
-        borderwidth=2,
-        borderpad=10,
-        align="center"
-    )
-    return fig
+    return fig_scatter, fig_hourly
 
 
 
@@ -615,7 +640,7 @@ def create_html_report(output_dir, timestamp, evaluation_names=None, model_ids=N
 
     # Add integrated analysis and regional performance (handled here to avoid circular imports)
     visualizations['integrated_analysis_tables'], analysis_df = create_integrated_analysis_table(model_task_metrics)
-    visualizations['regional_performance'] = create_regional_performance_analysis(df)
+    visualizations['regional_latency_cost'], visualizations['regional_hourly'] = create_regional_performance_analysis(df)
 
     # Generate findings and recommendations
     logger.info("Generating task findings...")
@@ -692,9 +717,10 @@ def create_html_report(output_dir, timestamp, evaluation_names=None, model_ids=N
 
         # Error and regional Analysis
         error_analysis_div=visualizations['error_analysis'],
-        integrated_analysis_tables={task: table.to_html(full_html=False) for task, table in visualizations['integrated_analysis_tables'].items()},
+        integrated_analysis_tables={task: table.to_html(full_html=False, include_plotlyjs=False, config={'displayModeBar': False, 'staticPlot': True}) for task, table in visualizations['integrated_analysis_tables'].items()},
         unique_tasks=list(visualizations['integrated_analysis_tables'].keys()),
-        regional_performance_div=visualizations['regional_performance'].to_html(full_html=False),
+        regional_latency_cost_div=visualizations['regional_latency_cost'].to_html(full_html=False),
+        regional_hourly_div=visualizations['regional_hourly'].to_html(full_html=False),
 
         # TTFB histograms and boxplots by task
         ttfb_histograms_by_task={task: chart.to_html(full_html=False)

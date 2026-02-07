@@ -295,7 +295,7 @@ class ReportViewerComponent:
                 html_content = f.read()
             
             # Display the HTML content using st.components.v1.html
-            st.components.v1.html(html_content, height=1200, width=1100, scrolling=True)
+            st.components.v1.html(html_content, height=1200, scrolling=True)
             
         except Exception as e:
             st.error(f"Error loading report: {str(e)}")
