@@ -42,8 +42,8 @@ def create_placeholder_chart(message="No data available for accuracy evaluation"
     )
     fig.update_layout(
         template="plotly_dark",
-        paper_bgcolor="#1e1e1e",
-        plot_bgcolor="#2d2d2d",
+        paper_bgcolor="#161e2d",
+        plot_bgcolor="#232f3e",
         xaxis=dict(visible=False),
         yaxis=dict(visible=False),
         height=400,
@@ -224,8 +224,8 @@ def create_normal_distribution_histogram(df,
     # Update layout
     fig.update_layout(
         template="plotly_dark",
-        paper_bgcolor="#1e1e1e",
-        plot_bgcolor="#2d2d2d",
+        paper_bgcolor="#161e2d",
+        plot_bgcolor="#232f3e",
         title={
             'text': subtitle_text,
             'x': 0.5,
@@ -414,8 +414,8 @@ def create_outlier_boxplot(df, key='time_to_first_byte', label='Time to First To
     # Update layout
     fig.update_layout(
         template="plotly_dark",
-        paper_bgcolor="#1e1e1e",
-        plot_bgcolor="#2d2d2d",
+        paper_bgcolor="#161e2d",
+        plot_bgcolor="#232f3e",
         title={
             'text': f'{label} - Percentile Distribution Analysis<br><sub>Stacked Percentile Ranges Showing Distribution Spread</sub>',
             'x': 0.5,
@@ -472,8 +472,8 @@ def create_visualizations(df, model_task_metrics, latency_metrics, cost_metrics,
 
     # Improve overall chart visibility
     ttft_fig.update_layout(
-        paper_bgcolor="#1e1e1e",
-        plot_bgcolor="#2d2d2d",  # Slightly lighter than paper for contrast
+        paper_bgcolor="#161e2d",
+        plot_bgcolor="#232f3e",  # Slightly lighter than paper for contrast
     )
 
     visualizations['ttft_comparison'] = ttft_fig
@@ -496,8 +496,8 @@ def create_visualizations(df, model_task_metrics, latency_metrics, cost_metrics,
 
     # Improve overall chart visibility
     otps_fig.update_layout(
-        paper_bgcolor="#1e1e1e",
-        plot_bgcolor="#2d2d2d",  # Slightly lighter than paper for contrast
+        paper_bgcolor="#161e2d",
+        plot_bgcolor="#232f3e",  # Slightly lighter than paper for contrast
     )
 
     visualizations['otps_comparison'] = otps_fig
@@ -518,8 +518,8 @@ def create_visualizations(df, model_task_metrics, latency_metrics, cost_metrics,
 
     # Improve overall chart visibility
     cost_fig.update_layout(
-        paper_bgcolor="#1e1e1e",
-        plot_bgcolor="#2d2d2d",  # Slightly lighter than paper for contrast
+        paper_bgcolor="#161e2d",
+        plot_bgcolor="#232f3e",  # Slightly lighter than paper for contrast
     )
 
     visualizations['cost_comparison'] = cost_fig
@@ -555,8 +555,8 @@ def create_visualizations(df, model_task_metrics, latency_metrics, cost_metrics,
         )
         # Improve overall chart visibility
         heatmap_fig.update_layout(
-            paper_bgcolor="#1e1e1e",
-            plot_bgcolor="#2d2d2d",  # Slightly lighter than paper for contrast
+            paper_bgcolor="#161e2d",
+            plot_bgcolor="#232f3e",  # Slightly lighter than paper for contrast
         )
 
     visualizations['model_task_heatmap'] = heatmap_fig
@@ -596,8 +596,8 @@ def create_visualizations(df, model_task_metrics, latency_metrics, cost_metrics,
                 title_font_color="#ffffff",
                 tickfont_color="#ffffff",
             ),
-            paper_bgcolor="#1e1e1e",
-            plot_bgcolor="#2d2d2d",
+            paper_bgcolor="#161e2d",
+            plot_bgcolor="#232f3e",
             font=dict(color="#e0e0e0"),
             title_font=dict(color="#90caf9", size=18)
         )
@@ -649,8 +649,8 @@ def create_visualizations(df, model_task_metrics, latency_metrics, cost_metrics,
 
         # Improve overall chart visibility
         bubble_fig.update_layout(
-            paper_bgcolor="#1e1e1e",
-            plot_bgcolor="#2d2d2d",  # Slightly lighter than paper for contrast
+            paper_bgcolor="#161e2d",
+            plot_bgcolor="#232f3e",  # Slightly lighter than paper for contrast
             font=dict(color="#e0e0e0"),
             title_font=dict(color="#90caf9", size=18)
         )
@@ -685,8 +685,8 @@ def create_visualizations(df, model_task_metrics, latency_metrics, cost_metrics,
             )
             # Improve overall chart visibility
             error_fig.update_layout(
-                paper_bgcolor="#1e1e1e",
-                plot_bgcolor="#2d2d2d",  # Slightly lighter than paper for contrast
+                paper_bgcolor="#161e2d",
+                plot_bgcolor="#232f3e",  # Slightly lighter than paper for contrast
                 )
 
             visualizations['error_analysis'] = error_fig.to_html(full_html=False)
@@ -791,8 +791,8 @@ def create_visualizations(df, model_task_metrics, latency_metrics, cost_metrics,
             # Update layout
             fig.update_layout(
                 template="plotly_dark",
-                paper_bgcolor="#1e1e1e",
-                plot_bgcolor="#2d2d2d",
+                paper_bgcolor="#161e2d",
+                plot_bgcolor="#232f3e",
                 polar=dict(
                     radialaxis=dict(
                         visible=True,
@@ -958,8 +958,8 @@ def create_visualizations(df, model_task_metrics, latency_metrics, cost_metrics,
                     title_text=f"Performance Metrics for {task_display} (Grouped by Temperature)",
                     barmode='group',
                     template="plotly_dark",
-                    paper_bgcolor="#1e1e1e",
-                    plot_bgcolor="#2d2d2d",
+                    paper_bgcolor="#161e2d",
+                    plot_bgcolor="#232f3e",
                     legend=dict(
                         orientation="h",
                         yanchor="bottom",
@@ -1027,8 +1027,8 @@ def create_visualizations(df, model_task_metrics, latency_metrics, cost_metrics,
                     title_text=f"Performance Metrics for {task_display}",
                     showlegend=False,
                     template="plotly_dark",
-                    paper_bgcolor="#1e1e1e",
-                    plot_bgcolor="#2d2d2d",
+                    paper_bgcolor="#161e2d",
+                    plot_bgcolor="#232f3e",
                 )
 
                 task_charts[task_display] = fig
