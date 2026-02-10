@@ -395,7 +395,7 @@ class ModelConfigurationComponent:
             judge_input_cost = st.number_input(
                 "Input Cost",
                 min_value=0.0,
-                max_value=1.0,
+                max_value=10.0,
                 value=default_input_cost,
                 step=0.0001,
                 format="%.6f",

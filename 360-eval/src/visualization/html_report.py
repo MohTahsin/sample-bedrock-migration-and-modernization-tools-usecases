@@ -120,7 +120,8 @@ def create_integrated_analysis_table(model_task_metrics):
     if has_success_rate:
         table_data['success_rate_fmt'] = table_data['success_rate'].apply(lambda x: f"{x:.1%}")
     table_data['avg_latency_fmt'] = table_data['avg_latency'].apply(lambda x: f"{x:.2f}s")
-    table_data['avg_cost_fmt'] = table_data['avg_cost'].apply(lambda x: f"${x:.4f}")
+    table_data['avg_cost_1k'] = table_data['avg_cost'] * 1000
+    table_data['avg_cost_fmt'] = table_data['avg_cost_1k'].apply(lambda x: f"${x:.2f}")
     table_data['avg_otps_fmt'] = table_data['avg_otps'].apply(lambda x: f"{x:.1f}")
 
     # Calculate composite score (higher is better)
@@ -174,7 +175,7 @@ def create_integrated_analysis_table(model_task_metrics):
         # Create table cells with conditional formatting
         # Prepare headers and values based on mode
         if has_success_rate:
-            header_values = ['Model', 'Task Type', 'Accuracy', 'Latency', 'Cost', 'Tokens/sec', 'Score']
+            header_values = ['Model', 'Task Type', 'Accuracy', 'Latency', 'Cost/1K', 'Tokens/sec', 'Score']
             cell_values = [
                 task_data['model_name'],
                 task_data['task_display_name'],
@@ -206,7 +207,7 @@ def create_integrated_analysis_table(model_task_metrics):
             ]
         else:
             # Latency-only mode: skip success rate column
-            header_values = ['Model', 'Task Type', 'Latency', 'Cost', 'Tokens/sec', 'Score']
+            header_values = ['Model', 'Task Type', 'Latency', 'Cost/1K', 'Tokens/sec', 'Score']
             cell_values = [
                 task_data['model_name'],
                 task_data['task_display_name'],
@@ -442,9 +443,10 @@ def create_regional_performance_analysis(df):
     ]
     for idx, row in regional_metrics.iterrows():
         color_idx = list(regional_metrics.index).index(idx) % len(aws_colors)
+        cost_1k = row['response_cost'] * 1000
         scatter = go.Scatter(
             x=[row['time_to_last_byte']],
-            y=[row['response_cost']],
+            y=[cost_1k],
             mode='markers+text',
             marker=dict(
                 size=row['size_values'],
@@ -457,7 +459,7 @@ def create_regional_performance_analysis(df):
             hovertemplate=
             f"<b>{row['composite_label']}</b><br>" +
             f"Latency: {row['time_to_last_byte']:.2f}s<br>" +
-            f"Cost: ${row['response_cost']:.4f}<br>" +
+            f"Cost per 1K: ${cost_1k:.2f}<br>" +
             f"Mean Token Size: {row['average_input_output_token_size']}<br>" +
             f"Local Time at Inference: {row['local_time']}<br>" +
             f"Time Period: {row['time_period']}<br><extra></extra>",
@@ -487,14 +489,14 @@ def create_regional_performance_analysis(df):
     )
 
     fig_scatter.update_layout(
-        title="Latency vs Cost by Region Across All Tasks",
+        title="Latency vs Cost per 1K Requests by Region Across All Tasks",
         template="plotly_dark",
         paper_bgcolor="#161e2d",
         plot_bgcolor="#232f3e",
         height=500,
         margin=dict(t=100, b=60, r=200),
         xaxis_title="Average Latency (Secs)",
-        yaxis_title="Average Cost (USD)",
+        yaxis_title="Average Cost per 1K Requests (USD)",
         legend=dict(
             title=dict(text='Region + Task'),
             y=0.5,

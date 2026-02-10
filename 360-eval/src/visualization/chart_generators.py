@@ -501,18 +501,20 @@ def create_visualizations(df, model_task_metrics, latency_metrics, cost_metrics,
     )
 
     visualizations['otps_comparison'] = otps_fig
-    average_cost_round = (cost_metrics
-                          .sort_values('avg_cost')
-                          .round({'avg_cost': 5}))
+    average_cost_round = cost_metrics.copy()
+    average_cost_round['avg_cost_1k'] = average_cost_round['avg_cost'] * 1000
+    average_cost_round = (average_cost_round
+                          .sort_values('avg_cost_1k')
+                          .round({'avg_cost_1k': 4}))
     # 3. Cost Comparison
     cost_fig = px.bar(
-        average_cost_round.sort_values('avg_cost'),
+        average_cost_round.sort_values('avg_cost_1k'),
         template="plotly_dark",  # Use the built-in dark template as a base
         x='model_name',
-        y='avg_cost',
-        labels={'model_name': 'Model', 'avg_cost': 'Cost per Response (USD)'},
-        title='Using μ (Micro) Symbol for Small Numbers',
-        color='avg_cost',
+        y='avg_cost_1k',
+        labels={'model_name': 'Model', 'avg_cost_1k': 'Cost per 1K Requests (USD)'},
+        title='Cost per 1K Requests by Model',
+        color='avg_cost_1k',
         color_continuous_scale='Viridis_r'  # Reversed so lower is better (green)
     )
 
@@ -564,13 +566,14 @@ def create_visualizations(df, model_task_metrics, latency_metrics, cost_metrics,
     # 6. Model-Task Bubble Chart
     if not has_success_rate_data:
         # For latency-only mode, create a simplified bubble chart with only latency vs cost
-        model_task_metrics_round = model_task_metrics
-        average_cost_round = model_task_metrics_round.round({'avg_otps': 2, 'value_ratio': 2})
+        model_task_metrics_round = model_task_metrics.copy()
+        model_task_metrics_round['avg_cost_1k'] = model_task_metrics_round['avg_cost'] * 1000
+        average_cost_round = model_task_metrics_round.round({'avg_otps': 2, 'value_ratio': 2, 'avg_cost_1k': 4})
         bubble_fig = px.scatter(
             average_cost_round,
             template="plotly_dark",
             x='avg_latency',
-            y='avg_cost',
+            y='avg_cost_1k',
             size='avg_otps',
             color='avg_otps',
             facet_col='task_display_name',
@@ -578,7 +581,7 @@ def create_visualizations(df, model_task_metrics, latency_metrics, cost_metrics,
             hover_data=['model_name'],
             labels={
                 'avg_latency': 'Latency (Secs)',
-                'avg_cost': 'Cost (USD)',
+                'avg_cost_1k': 'Cost per 1K Requests (USD)',
                 'avg_otps': 'Tokens/sec',
                 'task_display_name': 'Task Type'
             },
@@ -606,21 +609,22 @@ def create_visualizations(df, model_task_metrics, latency_metrics, cost_metrics,
         # Full 360 evaluation mode with success_rate - filter to only rows with success_rate
         metrics_with_success = model_task_metrics[model_task_metrics['success_rate'].notna()].copy()
         model_task_metrics_round = metrics_with_success
-        average_cost_round = model_task_metrics_round.round({'avg_otps': 2, 'value_ratio': 2})
+        model_task_metrics_round['avg_cost_1k'] = model_task_metrics_round['avg_cost'] * 1000
+        average_cost_round = model_task_metrics_round.round({'avg_otps': 2, 'value_ratio': 2, 'avg_cost_1k': 4})
         bubble_fig = px.scatter(
             average_cost_round,
             template="plotly_dark",  # Keep the dark template for the base layout
             x='avg_latency',
             y='success_rate',
             size='avg_otps',
-            color='avg_cost',
+            color='avg_cost_1k',
             facet_col='task_display_name',  # Use task_display_name instead of task_types
             facet_col_wrap=3,
             hover_data=['model_name', 'value_ratio'],
             labels={
                 'avg_latency': 'Latency (Secs)',
                 'success_rate': 'Success Rate',
-                'avg_cost': 'Cost (USD)',
+                'avg_cost_1k': 'Cost per 1K Requests (USD)',
                 'avg_otps': 'Tokens/sec',
                 'task_display_name': 'Task Type'  # Add label for task_display_name
             },
@@ -843,7 +847,7 @@ def create_visualizations(df, model_task_metrics, latency_metrics, cost_metrics,
                         rows=1, cols=3,
                         subplot_titles=(
                             "Latency (Secs) by Temperature",
-                            'Cost per Response (USD) by Temperature<br><span style="font-size: 12px;">Using μ (Micro) Symbol for Small Numbers</span>',
+                            'Cost per 1K Requests (USD) by Temperature',
                             "Tokens per Second by Temperature"
                         )
                     )
@@ -854,7 +858,7 @@ def create_visualizations(df, model_task_metrics, latency_metrics, cost_metrics,
                         subplot_titles=(
                             "Success Rate by Temperature",
                             "Latency (Secs) by Temperature",
-                            'Cost per Response (USD) by Temperature<br><span style="font-size: 12px;">Using μ (Micro) Symbol for Small Numbers</span>',
+                            'Cost per 1K Requests (USD) by Temperature',
                             "Tokens per Second by Temperature"
                         )
                     )
@@ -917,7 +921,7 @@ def create_visualizations(df, model_task_metrics, latency_metrics, cost_metrics,
                 cost_row, cost_col = (1, 2) if has_latency_only else (2, 1)
                 for temp in unique_temps:
                     temp_data = task_temp_data[task_temp_data['TEMPERATURE'] == temp].set_index('model_name')
-                    y_values = [temp_data.loc[model, 'avg_cost'] if model in temp_data.index else None
+                    y_values = [(temp_data.loc[model, 'avg_cost'] * 1000) if model in temp_data.index else None
                                 for model in unique_models]
 
                     fig.add_trace(
@@ -926,7 +930,7 @@ def create_visualizations(df, model_task_metrics, latency_metrics, cost_metrics,
                             y=y_values,
                             name=f'T={temp}',
                             marker_color=temp_color_map[temp],
-                            hovertemplate='<b>%{x}</b><br>Cost: $%{y:.4f}<br>Temperature: ' + str(temp) + '<extra></extra>',
+                            hovertemplate='<b>%{x}</b><br>Cost per 1K: $%{y:.2f}<br>Temperature: ' + str(temp) + '<extra></extra>',
                             showlegend=False,
                             legendgroup=f'temp_{temp}'
                         ),
@@ -981,13 +985,13 @@ def create_visualizations(df, model_task_metrics, latency_metrics, cost_metrics,
                     # Latency-only mode: skip success rate, use 1x3 grid
                     fig = make_subplots(
                         rows=1, cols=3,
-                        subplot_titles=("Latency (Secs)", 'Cost per Response (USD)<br><span style="font-size: 12px;">Using μ (Micro) Symbol for Small Numbers</span>', "Tokens per Second")
+                        subplot_titles=("Latency (Secs)", 'Cost per 1K Requests (USD)', "Tokens per Second")
                     )
                 else:
                     # Full 360 mode: include success rate, use 2x2 grid
                     fig = make_subplots(
                         rows=2, cols=2,
-                        subplot_titles=("Success Rate", "Latency (Secs)", 'Cost per Response (USD)<br><span style="font-size: 12px;">Using μ (Micro) Symbol for Small Numbers</span>', "Tokens per Second")
+                        subplot_titles=("Success Rate", "Latency (Secs)", 'Cost per 1K Requests (USD)', "Tokens per Second")
                     )
 
                 # Sort data for each subplot (using method chaining for efficiency)
@@ -1012,7 +1016,7 @@ def create_visualizations(df, model_task_metrics, latency_metrics, cost_metrics,
 
                 cost_row, cost_col = (1, 2) if has_latency_only else (2, 1)
                 fig.add_trace(
-                    go.Bar(x=by_cost['model_name'], y=by_cost['avg_cost'], marker_color='red'),
+                    go.Bar(x=by_cost['model_name'], y=by_cost['avg_cost'] * 1000, marker_color='red'),
                     row=cost_row, col=cost_col
                 )
 
