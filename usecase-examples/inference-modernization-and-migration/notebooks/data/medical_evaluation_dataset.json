@@ -1,0 +1,37 @@
+[
+    {
+        "id": "MED-001",
+        "prompt": "What are the common side effects of metformin? List them with brief explanations.",
+        "golden_answer": "Common side effects of metformin include:\n1. Nausea - especially when starting treatment, usually improves over time\n2. Diarrhea - gastrointestinal upset is common initially\n3. Stomach upset/abdominal discomfort - taking with food helps\n4. Metallic taste - some patients report altered taste\n5. Vitamin B12 deficiency - long-term use may affect absorption\n\nRare but serious: Lactic acidosis - seek immediate medical attention for unusual muscle pain, difficulty breathing, or extreme fatigue.",
+        "critical_entities": ["nausea", "diarrhea", "lactic acidosis", "stomach"],
+        "category": "medication_info"
+    },
+    {
+        "id": "MED-002",
+        "prompt": "Explain the symptoms of type 2 diabetes that patients should watch for.",
+        "golden_answer": "Key symptoms of type 2 diabetes include:\n- Increased thirst (polydipsia)\n- Frequent urination (polyuria)\n- Unexplained weight loss\n- Fatigue and weakness\n- Blurred vision\n- Slow-healing cuts or wounds\n- Numbness or tingling in hands/feet\n- Recurring infections\n\nIf experiencing these symptoms, consult a healthcare provider for blood glucose testing.",
+        "critical_entities": ["thirst", "urination", "fatigue", "blurred vision", "weight loss"],
+        "category": "symptom_recognition"
+    },
+    {
+        "id": "MED-003",
+        "prompt": "What should a patient know about taking blood pressure medication (ACE inhibitors like lisinopril)?",
+        "golden_answer": "Important information about ACE inhibitors (e.g., lisinopril):\n\nCommon side effects:\n- Dry, persistent cough (most common)\n- Dizziness, especially when standing\n- Headache\n- Fatigue\n\nSerious warnings:\n- Angioedema (swelling of face, lips, tongue) - seek emergency care immediately\n- Do not use during pregnancy\n- Avoid potassium supplements without doctor approval\n\nTips:\n- Take at the same time daily\n- Rise slowly from sitting/lying positions\n- Stay hydrated",
+        "critical_entities": ["cough", "dizziness", "angioedema", "pregnancy", "potassium"],
+        "category": "medication_info"
+    },
+    {
+        "id": "MED-004",
+        "prompt": "Describe the warning signs of a heart attack that require immediate medical attention.",
+        "golden_answer": "Heart attack warning signs requiring immediate 911 call:\n\nClassic symptoms:\n- Chest pain or discomfort (pressure, squeezing, fullness)\n- Pain radiating to arm, jaw, neck, or back\n- Shortness of breath\n- Cold sweat\n- Nausea or vomiting\n- Lightheadedness\n\nWomen may also experience:\n- Unusual fatigue\n- Sleep disturbances\n- Indigestion-like symptoms\n\nIMPORTANT: Call 911 immediately if you suspect a heart attack. Do not drive yourself. Time is critical.",
+        "critical_entities": ["chest pain", "arm", "shortness of breath", "911", "jaw"],
+        "category": "emergency_recognition"
+    },
+    {
+        "id": "MED-005",
+        "prompt": "What are the key differences between Type 1 and Type 2 diabetes? Explain briefly.",
+        "golden_answer": "Key differences between Type 1 and Type 2 diabetes:\n\nType 1 Diabetes:\n- Autoimmune condition - body attacks insulin-producing cells\n- Usually diagnosed in children/young adults\n- Requires insulin injections\n- Cannot be prevented\n- ~5-10% of diabetes cases\n\nType 2 Diabetes:\n- Body becomes resistant to insulin\n- Usually develops in adults (increasingly in youth)\n- May be managed with lifestyle, oral medications, or insulin\n- Often preventable with healthy lifestyle\n- ~90-95% of diabetes cases\n\nBoth require blood sugar monitoring and medical management.",
+        "critical_entities": ["autoimmune", "insulin", "children", "lifestyle", "resistant"],
+        "category": "disease_education"
+    }
+]
