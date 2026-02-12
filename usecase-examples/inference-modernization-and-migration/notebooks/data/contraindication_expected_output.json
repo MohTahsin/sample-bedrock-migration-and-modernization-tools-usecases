@@ -1,0 +1,14 @@
+{
+  "results": [
+    {"drug": "Metformin", "status": "CONTRAINDICATED", "reason": "eGFR 22 < 30"},
+    {"drug": "Ibuprofen", "status": "CONTRAINDICATED", "reason": "GI bleed history, eGFR < 30, heart failure"},
+    {"drug": "Sotalol", "status": "CONTRAINDICATED", "reason": "QT prolonged, asthma, EF 30% < 40%"},
+    {"drug": "Trimethoprim-sulfamethoxazole", "status": "CONTRAINDICATED", "reason": "sulfa allergy"},
+    {"drug": "Spironolactone", "status": "CAUTION", "reason": "eGFR 22 < 30"}
+  ],
+  "summary": {
+    "contraindicated": 4,
+    "caution": 1,
+    "safe": 0
+  }
+}

@@ -1,0 +1,45 @@
+{
+    "patient": {
+        "full_legal_name": "Margaret Chen",
+        "date_of_birth": "1958-07-22",
+        "age": 65,
+        "biological_sex": "female",
+        "medical_record_number": "MRN-2847561"
+    },
+    "encounter": {
+        "date": "2024-03-15",
+        "type": "emergency",
+        "hospital": {
+            "name": "St. Mary's General Hospital",
+            "department": "Emergency Department",
+            "unit": "CCU Bay 4"
+        },
+        "provider": {
+            "name": "Dr. James Morrison",
+            "specialty": "Cardiology",
+            "npi": "1234567890"
+        }
+    },
+    "diagnosis": {
+        "primary": {
+            "condition": "Non-ST elevation myocardial infarction",
+            "icd_10_code": "I21.4",
+            "severity": "moderate"
+        },
+        "secondary": [
+            {"condition": "Type 2 diabetes mellitus", "icd_10_code": "E11.9"},
+            {"condition": "Essential hypertension", "icd_10_code": "I10"}
+        ]
+    },
+    "treatment": {
+        "medications": [
+            {"name": "Aspirin", "dose": "325mg", "route": "oral", "frequency": "single dose"},
+            {"name": "Heparin", "dose": "5000 units", "route": "iv", "frequency": "bolus"},
+            {"name": "Metoprolol", "dose": "25mg", "route": "oral", "frequency": "twice daily"}
+        ],
+        "procedures": [
+            {"name": "Cardiac catheterization", "date": "2024-03-16", "urgency": "urgent"}
+        ],
+        "disposition": "admit to ccu"
+    }
+}
