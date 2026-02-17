@@ -1,0 +1,119 @@
+{
+  "events": [
+    {
+      "timestamp": "2024-01-15T10:30:00.000Z",
+      "event_type": "user_message",
+      "role": "user",
+      "text": "Search for recent AI papers",
+      "session_id": "session-orphan-456",
+      "conversation_id": "conv-orphan-001",
+      "trace_id": "trace-orphan-001",
+      "message_id": "msg-user-001",
+      "span_id": "span-001"
+    },
+    {
+      "timestamp": "2024-01-15T10:30:00.100Z",
+      "event_type": "model_invoke",
+      "span_kind": "CLIENT",
+      "model_id": "claude-3-sonnet",
+      "session_id": "session-orphan-456",
+      "conversation_id": "conv-orphan-001",
+      "trace_id": "trace-orphan-001",
+      "message_id": "msg-model-001",
+      "model_call_id": "model-call-001",
+      "span_id": "span-002",
+      "parent_span_id": "span-001",
+      "attributes": {
+        "model_latency_ms": 600.0
+      }
+    },
+    {
+      "timestamp": "2024-01-15T10:30:00.300Z",
+      "event_type": "tool_result",
+      "tool_name": "arxiv_search",
+      "tool_result": "{\"papers\": [{\"title\": \"Attention Is All You Need\", \"authors\": [\"Vaswani et al.\"]}, {\"title\": \"BERT: Pre-training of Deep Bidirectional Transformers\", \"authors\": [\"Devlin et al.\"]}]}",
+      "status": "success",
+      "session_id": "session-orphan-456",
+      "conversation_id": "conv-orphan-001",
+      "trace_id": "trace-orphan-001",
+      "span_id": "span-003",
+      "parent_span_id": "span-002",
+      "attributes": {
+        "status_code": 200,
+        "provider": "arxiv_service",
+        "latency_ms": 200.0,
+        "result_count": 2,
+        "note": "This tool result has no corresponding tool_call event - it's an orphan (no tool_run_id, no matching invocation)"
+      }
+    },
+    {
+      "timestamp": "2024-01-15T10:30:00.500Z",
+      "event_type": "tool_result",
+      "tool_name": "semantic_scholar",
+      "tool_run_id": "tool-run-orphan-002",
+      "tool_result": "{\"papers\": [{\"title\": \"GPT-3: Language Models are Few-Shot Learners\", \"citations\": 15000}]}",
+      "status": "success",
+      "session_id": "session-orphan-456",
+      "conversation_id": "conv-orphan-001",
+      "trace_id": "trace-orphan-001",
+      "span_id": "span-004",
+      "parent_span_id": "span-002",
+      "attributes": {
+        "status_code": 200,
+        "provider": "semantic_scholar_service",
+        "latency_ms": 200.0,
+        "result_count": 1,
+        "note": "Another orphan tool result - has tool_run_id but no matching tool_call event"
+      }
+    },
+    {
+      "timestamp": "2024-01-15T10:30:00.700Z",
+      "event_type": "llm_output_chunk",
+      "role": "assistant",
+      "text": "I found several influential AI papers including 'Attention Is All You Need' by Vaswani et al., 'BERT' by Devlin et al., and 'GPT-3' which has over 15,000 citations.",
+      "session_id": "session-orphan-456",
+      "conversation_id": "conv-orphan-001",
+      "trace_id": "trace-orphan-001",
+      "message_id": "msg-assistant-001",
+      "model_call_id": "model-call-001",
+      "span_id": "span-005",
+      "parent_span_id": "span-002"
+    },
+    {
+      "timestamp": "2024-01-15T10:30:00.750Z",
+      "event_type": "turn_end",
+      "finish_reason": "end_turn",
+      "session_id": "session-orphan-456",
+      "conversation_id": "conv-orphan-001",
+      "trace_id": "trace-orphan-001",
+      "model_call_id": "model-call-001",
+      "span_id": "span-006",
+      "attributes": {
+        "turn_latency_ms": 750.0,
+        "final_answer": "I found several influential AI papers including 'Attention Is All You Need' by Vaswani et al., 'BERT' by Devlin et al., and 'GPT-3' which has over 15,000 citations.",
+        "orphan_tool_results_detected": 2
+      }
+    }
+  ],
+  "run_id": "run-orphan-001",
+  "final_answer": "I found several influential AI papers including 'Attention Is All You Need' by Vaswani et al., 'BERT' by Devlin et al., and 'GPT-3' which has over 15,000 citations.",
+  "user_query": "Search for recent AI papers",
+  "attributes": {
+    "conversation_window_start": "2024-01-15T10:30:00.000Z",
+    "conversation_window_end": "2024-01-15T10:30:00.750Z",
+    "orphan_diagnostics": {
+      "orphan_tool_results_count": 2,
+      "orphan_details": [
+        {
+          "tool_name": "arxiv_search",
+          "reason": "no_tool_run_id_and_no_matching_invocation"
+        },
+        {
+          "tool_name": "semantic_scholar",
+          "tool_run_id": "tool-run-orphan-002",
+          "reason": "has_tool_run_id_but_no_matching_invocation"
+        }
+      ]
+    }
+  }
+}

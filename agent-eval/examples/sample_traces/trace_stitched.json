@@ -1,0 +1,216 @@
+{
+  "events": [
+    {
+      "timestamp": "2024-01-15T10:30:00.000Z",
+      "event_type": "user_message",
+      "role": "user",
+      "text": "What is machine learning?",
+      "session_id": "session-stitched-789",
+      "conversation_id": "conv-stitched-001",
+      "trace_id": "trace-stitched-001",
+      "request_id": "req-shared-001",
+      "turn_id": "turn-auto-1",
+      "message_id": "msg-q1-user-001",
+      "span_id": "span-q1-001",
+      "attributes": {
+        "window_start": "2024-01-15T10:30:00.000Z"
+      }
+    },
+    {
+      "timestamp": "2024-01-15T10:30:00.100Z",
+      "event_type": "model_invoke",
+      "span_kind": "CLIENT",
+      "model_id": "claude-3-sonnet",
+      "session_id": "session-stitched-789",
+      "conversation_id": "conv-stitched-001",
+      "trace_id": "trace-stitched-001",
+      "request_id": "req-shared-001",
+      "turn_id": "turn-auto-1",
+      "message_id": "msg-q1-model-001",
+      "model_call_id": "model-call-q1-001",
+      "span_id": "span-q1-002",
+      "parent_span_id": "span-q1-001",
+      "attributes": {
+        "model_latency_ms": 200.0
+      }
+    },
+    {
+      "timestamp": "2024-01-15T10:30:00.300Z",
+      "event_type": "llm_output_chunk",
+      "role": "assistant",
+      "text": "Machine learning is a subset of artificial intelligence that enables computers to learn from data without being explicitly programmed.",
+      "session_id": "session-stitched-789",
+      "conversation_id": "conv-stitched-001",
+      "trace_id": "trace-stitched-001",
+      "request_id": "req-shared-001",
+      "turn_id": "turn-auto-1",
+      "message_id": "msg-q1-assistant-001",
+      "model_call_id": "model-call-q1-001",
+      "span_id": "span-q1-003",
+      "parent_span_id": "span-q1-002"
+    },
+    {
+      "timestamp": "2024-01-15T10:30:00.350Z",
+      "event_type": "turn_end",
+      "finish_reason": "end_turn",
+      "session_id": "session-stitched-789",
+      "conversation_id": "conv-stitched-001",
+      "trace_id": "trace-stitched-001",
+      "request_id": "req-shared-001",
+      "turn_id": "turn-auto-1",
+      "model_call_id": "model-call-q1-001",
+      "span_id": "span-q1-004",
+      "attributes": {
+        "turn_latency_ms": 350.0,
+        "window_end": "2024-01-15T10:30:00.350Z",
+        "final_answer": "Machine learning is a subset of artificial intelligence that enables computers to learn from data without being explicitly programmed."
+      }
+    },
+    {
+      "timestamp": "2024-01-15T10:30:01.000Z",
+      "event_type": "user_message",
+      "role": "user",
+      "text": "What is deep learning?",
+      "session_id": "session-stitched-789",
+      "conversation_id": "conv-stitched-001",
+      "trace_id": "trace-stitched-001",
+      "request_id": "req-shared-001",
+      "turn_id": "turn-auto-2",
+      "message_id": "msg-q2-user-001",
+      "span_id": "span-q2-001",
+      "attributes": {
+        "window_start": "2024-01-15T10:30:01.000Z"
+      }
+    },
+    {
+      "timestamp": "2024-01-15T10:30:01.100Z",
+      "event_type": "model_invoke",
+      "span_kind": "CLIENT",
+      "model_id": "claude-3-sonnet",
+      "session_id": "session-stitched-789",
+      "conversation_id": "conv-stitched-001",
+      "trace_id": "trace-stitched-001",
+      "request_id": "req-shared-001",
+      "turn_id": "turn-auto-2",
+      "message_id": "msg-q2-model-001",
+      "model_call_id": "model-call-q2-001",
+      "span_id": "span-q2-002",
+      "parent_span_id": "span-q2-001",
+      "attributes": {
+        "model_latency_ms": 200.0
+      }
+    },
+    {
+      "timestamp": "2024-01-15T10:30:01.300Z",
+      "event_type": "llm_output_chunk",
+      "role": "assistant",
+      "text": "Deep learning is a specialized form of machine learning that uses neural networks with multiple layers to process complex patterns in data.",
+      "session_id": "session-stitched-789",
+      "conversation_id": "conv-stitched-001",
+      "trace_id": "trace-stitched-001",
+      "request_id": "req-shared-001",
+      "turn_id": "turn-auto-2",
+      "message_id": "msg-q2-assistant-001",
+      "model_call_id": "model-call-q2-001",
+      "span_id": "span-q2-003",
+      "parent_span_id": "span-q2-002"
+    },
+    {
+      "timestamp": "2024-01-15T10:30:01.350Z",
+      "event_type": "turn_end",
+      "finish_reason": "end_turn",
+      "session_id": "session-stitched-789",
+      "conversation_id": "conv-stitched-001",
+      "trace_id": "trace-stitched-001",
+      "request_id": "req-shared-001",
+      "turn_id": "turn-auto-2",
+      "model_call_id": "model-call-q2-001",
+      "span_id": "span-q2-004",
+      "attributes": {
+        "turn_latency_ms": 350.0,
+        "window_end": "2024-01-15T10:30:01.350Z",
+        "final_answer": "Deep learning is a specialized form of machine learning that uses neural networks with multiple layers to process complex patterns in data."
+      }
+    },
+    {
+      "timestamp": "2024-01-15T10:30:02.000Z",
+      "event_type": "user_message",
+      "role": "user",
+      "text": "What are neural networks?",
+      "session_id": "session-stitched-789",
+      "conversation_id": "conv-stitched-001",
+      "trace_id": "trace-stitched-001",
+      "request_id": "req-shared-001",
+      "turn_id": "turn-auto-3",
+      "message_id": "msg-q3-user-001",
+      "span_id": "span-q3-001",
+      "attributes": {
+        "window_start": "2024-01-15T10:30:02.000Z"
+      }
+    },
+    {
+      "timestamp": "2024-01-15T10:30:02.100Z",
+      "event_type": "model_invoke",
+      "span_kind": "CLIENT",
+      "model_id": "claude-3-sonnet",
+      "session_id": "session-stitched-789",
+      "conversation_id": "conv-stitched-001",
+      "trace_id": "trace-stitched-001",
+      "request_id": "req-shared-001",
+      "turn_id": "turn-auto-3",
+      "message_id": "msg-q3-model-001",
+      "model_call_id": "model-call-q3-001",
+      "span_id": "span-q3-002",
+      "parent_span_id": "span-q3-001",
+      "attributes": {
+        "model_latency_ms": 200.0
+      }
+    },
+    {
+      "timestamp": "2024-01-15T10:30:02.300Z",
+      "event_type": "llm_output_chunk",
+      "role": "assistant",
+      "text": "Neural networks are computing systems inspired by biological neural networks, consisting of interconnected nodes that process information.",
+      "session_id": "session-stitched-789",
+      "conversation_id": "conv-stitched-001",
+      "trace_id": "trace-stitched-001",
+      "request_id": "req-shared-001",
+      "turn_id": "turn-auto-3",
+      "message_id": "msg-q3-assistant-001",
+      "model_call_id": "model-call-q3-001",
+      "span_id": "span-q3-003",
+      "parent_span_id": "span-q3-002"
+    },
+    {
+      "timestamp": "2024-01-15T10:30:02.350Z",
+      "event_type": "turn_end",
+      "finish_reason": "end_turn",
+      "session_id": "session-stitched-789",
+      "conversation_id": "conv-stitched-001",
+      "trace_id": "trace-stitched-001",
+      "request_id": "req-shared-001",
+      "turn_id": "turn-auto-3",
+      "model_call_id": "model-call-q3-001",
+      "span_id": "span-q3-004",
+      "attributes": {
+        "turn_latency_ms": 350.0,
+        "window_end": "2024-01-15T10:30:02.350Z",
+        "final_answer": "Neural networks are computing systems inspired by biological neural networks, consisting of interconnected nodes that process information."
+      }
+    }
+  ],
+  "run_id": "run-stitched-001",
+  "attributes": {
+    "conversation_window_start": "2024-01-15T10:30:00.000Z",
+    "conversation_window_end": "2024-01-15T10:30:02.350Z",
+    "total_conversation_latency_ms": 2350.0,
+    "stitch_diagnostics": {
+      "distinct_user_prompts": 3,
+      "shared_request_id": "req-shared-001",
+      "request_id_reuse_detected": true,
+      "distinct_turn_ids": ["turn-auto-1", "turn-auto-2", "turn-auto-3"],
+      "distinct_message_ids": 12,
+      "segmentation_hint": "Use turn_id or message_id for recovery; request_id is unreliable"
+    }
+  }
+}

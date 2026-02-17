@@ -1,0 +1,220 @@
+{
+  "events": [
+    {
+      "timestamp": "2024-01-15T10:30:00.000Z",
+      "event_type": "user_message",
+      "role": "user",
+      "text": "What is the capital of France?",
+      "session_id": "session-multi-456",
+      "conversation_id": "conv-abc-789",
+      "trace_id": "trace-multi-001",
+      "turn_id": "turn-1",
+      "request_id": "req-001",
+      "message_id": "msg-t1-user-001",
+      "span_id": "span-t1-001"
+    },
+    {
+      "timestamp": "2024-01-15T10:30:00.100Z",
+      "event_type": "model_invoke",
+      "span_kind": "CLIENT",
+      "model_id": "claude-3-sonnet",
+      "session_id": "session-multi-456",
+      "conversation_id": "conv-abc-789",
+      "trace_id": "trace-multi-001",
+      "turn_id": "turn-1",
+      "request_id": "req-001",
+      "message_id": "msg-t1-model-001",
+      "span_id": "span-t1-002",
+      "parent_span_id": "span-t1-001"
+    },
+    {
+      "timestamp": "2024-01-15T10:30:00.200Z",
+      "event_type": "llm_output_chunk",
+      "role": "assistant",
+      "text": "The capital of France is Paris.",
+      "session_id": "session-multi-456",
+      "conversation_id": "conv-abc-789",
+      "trace_id": "trace-multi-001",
+      "turn_id": "turn-1",
+      "request_id": "req-001",
+      "message_id": "msg-t1-assistant-001",
+      "span_id": "span-t1-003",
+      "parent_span_id": "span-t1-002"
+    },
+    {
+      "timestamp": "2024-01-15T10:30:00.250Z",
+      "event_type": "turn_end",
+      "finish_reason": "end_turn",
+      "session_id": "session-multi-456",
+      "conversation_id": "conv-abc-789",
+      "trace_id": "trace-multi-001",
+      "turn_id": "turn-1",
+      "request_id": "req-001",
+      "span_id": "span-t1-004",
+      "attributes": {
+        "turn_latency_ms": 250.0,
+        "final_answer": "The capital of France is Paris."
+      }
+    },
+    {
+      "timestamp": "2024-01-15T10:31:00.000Z",
+      "event_type": "user_message",
+      "role": "user",
+      "text": "What is its population?",
+      "session_id": "session-multi-456",
+      "conversation_id": "conv-abc-789",
+      "trace_id": "trace-multi-001",
+      "turn_id": "turn-2",
+      "request_id": "req-002",
+      "message_id": "msg-t2-user-001",
+      "span_id": "span-t2-001"
+    },
+    {
+      "timestamp": "2024-01-15T10:31:00.100Z",
+      "event_type": "model_invoke",
+      "span_kind": "CLIENT",
+      "model_id": "claude-3-sonnet",
+      "session_id": "session-multi-456",
+      "conversation_id": "conv-abc-789",
+      "trace_id": "trace-multi-001",
+      "turn_id": "turn-2",
+      "request_id": "req-002",
+      "message_id": "msg-t2-model-001",
+      "span_id": "span-t2-002",
+      "parent_span_id": "span-t2-001"
+    },
+    {
+      "timestamp": "2024-01-15T10:31:00.150Z",
+      "event_type": "tool_invocation",
+      "tool_name": "search_api",
+      "tool_run_id": "tool-run-789",
+      "tool_input": "{\"query\": \"Paris population 2024\"}",
+      "session_id": "session-multi-456",
+      "conversation_id": "conv-abc-789",
+      "trace_id": "trace-multi-001",
+      "turn_id": "turn-2",
+      "request_id": "req-002",
+      "span_id": "span-t2-003",
+      "parent_span_id": "span-t2-002",
+      "attributes": {
+        "provider": "search_service",
+        "api_version": "v2",
+        "tool_latency_ms": 200.0
+      }
+    },
+    {
+      "timestamp": "2024-01-15T10:31:00.350Z",
+      "event_type": "tool_result",
+      "tool_name": "search_api",
+      "tool_run_id": "tool-run-789",
+      "tool_result": "{\"result\": \"Paris has a population of approximately 2.2 million in the city proper and 12.5 million in the metropolitan area.\"}",
+      "status": "success",
+      "session_id": "session-multi-456",
+      "conversation_id": "conv-abc-789",
+      "trace_id": "trace-multi-001",
+      "turn_id": "turn-2",
+      "request_id": "req-002",
+      "span_id": "span-t2-004",
+      "parent_span_id": "span-t2-003",
+      "attributes": {
+        "status_code": 200,
+        "provider": "search_service",
+        "latency_ms": 200.0,
+        "result_count": 1
+      }
+    },
+    {
+      "timestamp": "2024-01-15T10:31:00.450Z",
+      "event_type": "llm_output_chunk",
+      "role": "assistant",
+      "text": "Paris has a population of approximately 2.2 million people in the city proper, and about 12.5 million in the greater metropolitan area.",
+      "session_id": "session-multi-456",
+      "conversation_id": "conv-abc-789",
+      "trace_id": "trace-multi-001",
+      "turn_id": "turn-2",
+      "request_id": "req-002",
+      "message_id": "msg-t2-assistant-001",
+      "span_id": "span-t2-005",
+      "parent_span_id": "span-t2-002"
+    },
+    {
+      "timestamp": "2024-01-15T10:31:00.500Z",
+      "event_type": "turn_end",
+      "finish_reason": "end_turn",
+      "session_id": "session-multi-456",
+      "conversation_id": "conv-abc-789",
+      "trace_id": "trace-multi-001",
+      "turn_id": "turn-2",
+      "request_id": "req-002",
+      "span_id": "span-t2-006",
+      "attributes": {
+        "turn_latency_ms": 500.0,
+        "final_answer": "Paris has a population of approximately 2.2 million people in the city proper, and about 12.5 million in the greater metropolitan area.",
+        "tools_used": ["search_api"]
+      }
+    },
+    {
+      "timestamp": "2024-01-15T10:32:00.000Z",
+      "event_type": "user_message",
+      "role": "user",
+      "text": "Thank you!",
+      "session_id": "session-multi-456",
+      "conversation_id": "conv-abc-789",
+      "trace_id": "trace-multi-001",
+      "turn_id": "turn-3",
+      "request_id": "req-003",
+      "message_id": "msg-t3-user-001",
+      "span_id": "span-t3-001"
+    },
+    {
+      "timestamp": "2024-01-15T10:32:00.050Z",
+      "event_type": "model_invoke",
+      "span_kind": "CLIENT",
+      "model_id": "claude-3-sonnet",
+      "session_id": "session-multi-456",
+      "conversation_id": "conv-abc-789",
+      "trace_id": "trace-multi-001",
+      "turn_id": "turn-3",
+      "request_id": "req-003",
+      "message_id": "msg-t3-model-001",
+      "span_id": "span-t3-002",
+      "parent_span_id": "span-t3-001"
+    },
+    {
+      "timestamp": "2024-01-15T10:32:00.100Z",
+      "event_type": "llm_output_chunk",
+      "role": "assistant",
+      "text": "You're welcome! Let me know if you have any other questions.",
+      "session_id": "session-multi-456",
+      "conversation_id": "conv-abc-789",
+      "trace_id": "trace-multi-001",
+      "turn_id": "turn-3",
+      "request_id": "req-003",
+      "message_id": "msg-t3-assistant-001",
+      "span_id": "span-t3-003",
+      "parent_span_id": "span-t3-002"
+    },
+    {
+      "timestamp": "2024-01-15T10:32:00.150Z",
+      "event_type": "turn_end",
+      "finish_reason": "end_turn",
+      "session_id": "session-multi-456",
+      "conversation_id": "conv-abc-789",
+      "trace_id": "trace-multi-001",
+      "turn_id": "turn-3",
+      "request_id": "req-003",
+      "span_id": "span-t3-004",
+      "attributes": {
+        "turn_latency_ms": 150.0,
+        "final_answer": "You're welcome! Let me know if you have any other questions."
+      }
+    }
+  ],
+  "run_id": "run-multi-turn-001",
+  "attributes": {
+    "conversation_window_start": "2024-01-15T10:30:00.000Z",
+    "conversation_window_end": "2024-01-15T10:32:00.150Z",
+    "total_conversation_latency_ms": 2150.0,
+    "turn_count": 3
+  }
+}

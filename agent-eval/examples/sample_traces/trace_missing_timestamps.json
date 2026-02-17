@@ -1,0 +1,118 @@
+{
+  "events": [
+    {
+      "event_id": "evt-no-ts-001",
+      "event_type": "user_message",
+      "role": "user",
+      "text": "What is the meaning of life?",
+      "session_id": "session-no-ts-001",
+      "conversation_id": "conv-no-ts-001",
+      "trace_id": "trace-no-ts-001",
+      "request_id": null,
+      "turn_id": null,
+      "message_id": "msg-no-ts-user-001",
+      "span_id": "span-001",
+      "sequence": 1,
+      "attributes": {
+        "note": "This event has no timestamp field"
+      }
+    },
+    {
+      "event_id": "evt-no-ts-002",
+      "timestamp": null,
+      "event_type": "model_invoke",
+      "model_id": "claude-3-sonnet",
+      "session_id": "session-no-ts-001",
+      "conversation_id": "conv-no-ts-001",
+      "trace_id": "trace-no-ts-001",
+      "request_id": null,
+      "turn_id": null,
+      "message_id": "msg-no-ts-model-001",
+      "model_call_id": "model-call-no-ts-001",
+      "span_id": "span-002",
+      "parent_span_id": "span-001",
+      "sequence": 2,
+      "attributes": {
+        "note": "This event has null timestamp"
+      }
+    },
+    {
+      "event_id": "evt-no-ts-003",
+      "timestamp": "invalid-timestamp-format",
+      "event_type": "tool_invocation",
+      "tool_name": "philosophy_db",
+      "tool_run_id": "tool-run-001",
+      "tool_input": "{\"query\": \"meaning of life\"}",
+      "session_id": "session-no-ts-001",
+      "conversation_id": "conv-no-ts-001",
+      "trace_id": "trace-no-ts-001",
+      "request_id": null,
+      "turn_id": null,
+      "span_id": "span-003",
+      "parent_span_id": "span-002",
+      "sequence": 3,
+      "attributes": {
+        "note": "This event has invalid timestamp format",
+        "provider": "philosophy_service",
+        "tool_latency_ms": 200.0
+      }
+    },
+    {
+      "event_id": "evt-no-ts-004",
+      "timestamp": "2024-01-15T10:30:00.400Z",
+      "timestamp_ms": 1705315800400,
+      "event_type": "tool_result",
+      "tool_name": "philosophy_db",
+      "tool_run_id": "tool-run-001",
+      "tool_result": "{\"answer\": \"42, according to Douglas Adams\"}",
+      "status": "success",
+      "session_id": "session-no-ts-001",
+      "conversation_id": "conv-no-ts-001",
+      "trace_id": "trace-no-ts-001",
+      "request_id": null,
+      "turn_id": null,
+      "span_id": "span-004",
+      "parent_span_id": "span-003",
+      "sequence": 4,
+      "attributes": {
+        "note": "This event has valid timestamp",
+        "status_code": 200,
+        "provider": "philosophy_service",
+        "latency_ms": 200.0
+      }
+    },
+    {
+      "event_id": "evt-no-ts-005",
+      "ts": "2024-01-15T10:30:00.500Z",
+      "event_type": "llm_output_chunk",
+      "role": "assistant",
+      "text": "According to Douglas Adams' 'The Hitchhiker's Guide to the Galaxy', the answer is 42. But philosophically, the meaning of life is a deeply personal question that varies for each individual.",
+      "session_id": "session-no-ts-001",
+      "conversation_id": "conv-no-ts-001",
+      "trace_id": "trace-no-ts-001",
+      "request_id": null,
+      "turn_id": null,
+      "message_id": "msg-no-ts-assistant-001",
+      "model_call_id": "model-call-no-ts-001",
+      "span_id": "span-005",
+      "parent_span_id": "span-002",
+      "sequence": 5,
+      "attributes": {
+        "note": "This event uses 'ts' instead of 'timestamp' field name"
+      }
+    }
+  ],
+  "run_id": "run-missing-ts-001",
+  "final_answer": "According to Douglas Adams' 'The Hitchhiker's Guide to the Galaxy', the answer is 42. But philosophically, the meaning of life is a deeply personal question that varies for each individual.",
+  "user_query": "What is the meaning of life?",
+  "attributes": {
+    "timestamp_diagnostics": {
+      "events_with_no_timestamp": 1,
+      "events_with_null_timestamp": 1,
+      "events_with_invalid_timestamp": 1,
+      "events_with_valid_timestamp": 1,
+      "events_with_alternate_field": 1,
+      "note": "Sequence numbers provide deterministic ordering when timestamps are missing/invalid"
+    }
+  }
+}
