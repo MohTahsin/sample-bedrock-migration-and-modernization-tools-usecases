@@ -1,0 +1,133 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Results Summary",
+  "description": "Schema for results.json output file with fingerprinting and execution stats",
+  "type": "object",
+  "required": ["format_version", "run_id", "rubrics_hash", "judge_config_hash", "input_hash", "deterministic_metrics", "rubric_results", "judge_disagreements", "artifact_paths", "execution_stats"],
+  "additionalProperties": false,
+  "properties": {
+    "format_version": {
+      "type": "string",
+      "description": "Output format version (e.g., 1.0.0)"
+    },
+    "run_id": {
+      "type": "string",
+      "description": "Run identifier from NormalizedRun"
+    },
+    "rubrics_hash": {
+      "type": "string",
+      "description": "SHA-256 hash of rubrics configuration for cross-run comparison"
+    },
+    "judge_config_hash": {
+      "type": "string",
+      "description": "SHA-256 hash of judge configuration"
+    },
+    "input_hash": {
+      "type": "string",
+      "description": "SHA-256 hash of input NormalizedRun"
+    },
+    "deterministic_metrics": {
+      "type": "object",
+      "description": "Full deterministic metrics object",
+      "additionalProperties": true
+    },
+    "rubric_results": {
+      "type": "object",
+      "description": "Per-rubric, per-turn structure with aggregated scores",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": ["turn", "run"]
+          },
+          "turns": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "cross_judge_score": {
+                  "type": ["number", "string", "null"]
+                },
+                "disagreement_signal": {
+                  "type": "number"
+                },
+                "high_risk_flag": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "judge_disagreements": {
+      "type": "array",
+      "description": "List of high-risk disagreements",
+      "items": {
+        "type": "object",
+        "required": ["rubric_id", "disagreement_score"],
+        "properties": {
+          "rubric_id": {
+            "type": "string"
+          },
+          "turn_id": {
+            "type": ["string", "null"]
+          },
+          "disagreement_score": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        }
+      }
+    },
+    "artifact_paths": {
+      "type": "object",
+      "description": "Paths to output artifacts",
+      "required": ["judge_runs_jsonl", "trace_eval_json"],
+      "properties": {
+        "judge_runs_jsonl": {
+          "type": "string"
+        },
+        "trace_eval_json": {
+          "type": "string"
+        }
+      }
+    },
+    "execution_stats": {
+      "type": "object",
+      "description": "Execution statistics",
+      "required": ["total_jobs", "completed_jobs", "failed_jobs", "duration_seconds"],
+      "properties": {
+        "total_jobs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "completed_jobs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed_jobs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failure_ratio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "failed_job_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "duration_seconds": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

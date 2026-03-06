@@ -1,0 +1,116 @@
+feat: Complete agent evaluation framework with AgentCore OTEL integration
+
+This commit introduces a comprehensive agent evaluation framework for offline
+trace analysis with AgentCore CloudWatch OTEL integration (Phase 1 complete).
+
+## Core Features
+
+### 1. Generic JSON Adapter
+- Resilient trace normalization with configurable field mappings
+- Handles noisy, malformed, and mixed-format traces
+- Confidence scoring system with penalty tracking
+- Comprehensive test coverage for edge cases
+
+### 2. Trace Evaluation Pipeline
+- Multi-judge LLM evaluation system (1-5 judges)
+- Rubric-based scoring with customizable criteria
+- Deterministic metrics (turns, tool calls, latency)
+- Concurrent job execution with rate limiting
+- Comprehensive error handling and validation
+
+### 3. AgentCore Integration (Phase 1)
+- ARN-based wrapper for automatic log group discovery
+- OTEL trace extraction from CloudWatch Insights
+- Timestamp conversion (nanoseconds to ISO8601)
+- Session ID and trace ID extraction
+- 1000 turns validated with 100% timestamp accuracy
+
+### 4. Release Gate System
+- Golden test pack with 6 weird traces
+- Expected results manifests for regression detection
+- Smoke test script for automated validation
+- Pre-push check with 6 comprehensive gates
+- Makefile targets for convenient testing
+
+## Project Structure
+
+```
+agent-eval/
+├── agent_eval/
+│   ├── adapters/          # Generic JSON adapter
+│   ├── evaluators/        # Trace evaluation pipeline
+│   ├── judges/            # LLM judge clients (mock + Bedrock)
+│   ├── providers/         # Bedrock provider implementation
+│   ├── schemas/           # JSON schemas for validation
+│   ├── tools/             # CloudWatch + AgentCore extractors
+│   ├── cli.py             # CLI entry point
+│   └── pipeline.py        # Pipeline orchestrator
+├── tests/                 # Comprehensive test suite
+├── test-fixtures/         # Golden traces + expected results
+├── scripts/               # Smoke tests + pre-push checks
+├── guides/                # Documentation
+└── Makefile              # Convenient test targets
+```
+
+## Testing
+
+All tests passing:
+- Unit tests: pytest suite with property-based tests
+- Smoke tests: 6 weird traces validated
+- Integration tests: End-to-end pipeline
+- Negative path tests: Graceful failure handling
+
+## AgentCore Status
+
+Phase 1 Complete:
+✅ OTEL extraction (1000 turns, 100% timestamp accuracy)
+✅ ARN wrapper with log group discovery
+✅ Trace ID, span ID, session ID extraction
+
+Known Limitations:
+⚠️ user_query extraction blocked by CloudWatch Insights
+   (cannot extract deeply nested body.input field)
+
+Next Phases:
+- Phase 2: Wire wrapper to OTEL mode by default
+- Phase 3: Validation and quality checks
+- Phase 4: End-to-end pipeline testing
+
+## Usage
+
+```bash
+# Evaluate raw trace
+python -m agent_eval.cli \
+  --input trace.json \
+  --judge-config judges.yaml \
+  --rubrics rubrics.yaml \
+  --output-dir ./output
+
+# Run pre-push checks
+make pre-push
+
+# Extract from AgentCore
+python -m agent_eval.tools.agentcore_pipeline.run_from_agentcore_arn \
+  --agent-runtime-arn arn:aws:bedrock-agentcore:REGION:ACCOUNT:runtime/ID \
+  --region us-east-1 \
+  --minutes 60 \
+  --output-dir ./output
+```
+
+## Documentation
+
+- README.md: User journey and quick start
+- guides/RELEASE_GATE.md: Release gate system
+- guides/VALIDATION_RESULTS.md: AgentCore validation results
+- guides/OTEL_EXTRACTION_FINDINGS.md: OTEL implementation details
+
+## Breaking Changes
+
+None - this is the initial implementation.
+
+## Dependencies
+
+- boto3: AWS SDK for CloudWatch and Bedrock
+- jsonschema: Schema validation
+- pyyaml: Configuration files
+- hypothesis: Property-based testing

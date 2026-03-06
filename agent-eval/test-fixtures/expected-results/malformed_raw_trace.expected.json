@@ -1,0 +1,8 @@
+{
+  "expected_exit_code": 1,
+  "min_turns": 0,
+  "max_turns": 0,
+  "expected_tool_calls": 0,
+  "min_confidence": 0.0,
+  "description": "Negative case: should fail gracefully"
+}

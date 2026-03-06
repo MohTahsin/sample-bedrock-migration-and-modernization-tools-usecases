@@ -1,0 +1,43 @@
+{
+  "trace_id": "raw-noisy-001",
+  "session_id": "sess-001",
+  "tenant_id": "tenant-alpha",
+  "random_debug_blob": {
+    "foo": "bar",
+    "nested": {
+      "ignore_me": true,
+      "count": 999
+    }
+  },
+  "unused_array": [1, 2, 3, {"x": "y"}],
+  "events": [
+    {
+      "timestamp": "2026-03-06T10:30:00Z",
+      "type": "user_message",
+      "turn_id": "turn-1",
+      "content": "What is the capital of France?",
+      "extra_field_1": "should be ignored",
+      "latency_ms": 12345,
+      "ui_state": {
+        "theme": "dark",
+        "font": "large"
+      }
+    },
+    {
+      "timestamp": "2026-03-06T10:30:01Z",
+      "type": "agent_response",
+      "turn_id": "turn-1",
+      "content": "The capital of France is Paris.",
+      "debug_tokens": {
+        "input": 100,
+        "output": 20
+      },
+      "unused_boolean": false
+    }
+  ],
+  "source_metadata": {
+    "region": "us-east-1",
+    "pipeline_version": "dev-local",
+    "non_required_note": "adapter should ignore this if not needed"
+  }
+}

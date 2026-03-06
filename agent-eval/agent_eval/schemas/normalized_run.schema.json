@@ -77,7 +77,7 @@
     "adapter_stats": {
       "type": "object",
       "description": "Adapter processing statistics and confidence metrics",
-      "required": ["total_events_processed", "turn_count", "confidence_penalties"],
+      "required": ["total_events_processed", "turn_count", "confidence_penalties", "segmentation_strategy", "mapping_coverage", "orphan_tool_results"],
       "additionalProperties": false,
       "properties": {
         "total_events_processed": {
@@ -174,9 +174,36 @@
             }
           }
         },
+        "segmentation_strategy": {
+          "type": "string",
+          "description": "Strategy used for turn segmentation (TURN_ID, SESSION_PLUS_REQUEST, SINGLE_TURN_FALLBACK, etc.)"
+        },
+        "mapping_coverage": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Overall field mapping coverage score"
+        },
         "segmentation_strategy_reason": {
           "type": "string",
           "description": "Explanation of why the segmentation strategy was selected"
+        },
+        "warnings": {
+          "type": "array",
+          "description": "List of warnings encountered during processing",
+          "items": {
+            "type": "string"
+          }
+        },
+        "missing_fields_summary": {
+          "type": "object",
+          "description": "Top 10 missing fields with aliases that were attempted",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         }
       }
     },

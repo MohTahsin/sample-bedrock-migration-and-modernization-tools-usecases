@@ -1,0 +1,17 @@
+{
+  "trace_id": "raw-001",
+  "events": [
+    {
+      "timestamp": "2024-01-15T10:30:00Z",
+      "type": "user_message",
+      "turn_id": "turn-1",
+      "content": "What is the capital of France?"
+    },
+    {
+      "timestamp": "2024-01-15T10:30:01Z",
+      "type": "agent_response",
+      "turn_id": "turn-1",
+      "content": "The capital of France is Paris."
+    }
+  ]
+}

@@ -11,6 +11,11 @@ Public API:
         
     DEFAULT_CONFIG_PATH: Path
         Default path to adapter_config.yaml (works regardless of CWD).
+    
+    Exception Classes:
+        InputError: File not found, invalid JSON, or unreadable input
+        ValidationError: Schema validation failure or no events exist
+        AdaptationError: Internal adapter logic errors
 
 Example:
     >>> from agent_eval.adapters.generic_json import adapt
@@ -19,6 +24,12 @@ Example:
     'abc-123-def'
     >>> print(result["turns"][0]["confidence"])
     0.85
+    
+    >>> # Error handling
+    >>> try:
+    ...     result = adapt("missing.json")
+    ... except InputError as e:
+    ...     print(f"Input error: {e}")
 """
 
 from pathlib import Path
@@ -31,7 +42,8 @@ DEFAULT_CONFIG_PATH = Path(__file__).with_name("adapter_config.yaml")
 # This will be implemented in subtask 8.2
 try:
     from .adapter import adapt
-    __all__ = ["adapt", "DEFAULT_CONFIG_PATH"]
+    from .exceptions import InputError, ValidationError, AdaptationError
+    __all__ = ["adapt", "DEFAULT_CONFIG_PATH", "InputError", "ValidationError", "AdaptationError"]
 except ImportError:
     # adapter.py not yet implemented - export only DEFAULT_CONFIG_PATH
     __all__ = ["DEFAULT_CONFIG_PATH"]

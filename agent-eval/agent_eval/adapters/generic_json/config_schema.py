@@ -68,13 +68,21 @@ class ClassificationCondition(BaseModel):
     field: str
     regex: Optional[str] = None
     exists: Optional[bool] = None
+    equals: Optional[Any] = None
 
     @model_validator(mode='after')
     def validate_condition(self):
-        if self.regex is None and self.exists is None:
-            raise ValueError(f"Condition for field '{self.field}' must have either 'regex' or 'exists'")
-        if self.regex is not None and self.exists is not None:
-            raise ValueError(f"Condition for field '{self.field}' cannot have both 'regex' and 'exists'")
+        # Count how many condition types are specified
+        condition_types = sum([
+            self.regex is not None,
+            self.exists is not None,
+            self.equals is not None
+        ])
+        
+        if condition_types == 0:
+            raise ValueError(f"Condition for field '{self.field}' must have either 'regex', 'exists', or 'equals'")
+        if condition_types > 1:
+            raise ValueError(f"Condition for field '{self.field}' can only have one of 'regex', 'exists', or 'equals'")
         
         # Validate regex pattern if present
         if self.regex is not None:

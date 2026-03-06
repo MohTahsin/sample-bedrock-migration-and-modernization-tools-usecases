@@ -1,0 +1,66 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Rubric Definition",
+  "description": "Schema for evaluation rubric definitions",
+  "type": "object",
+  "required": ["rubric_id", "description", "scoring_scale", "requires_llm_judge", "evidence_selectors", "scope"],
+  "additionalProperties": false,
+  "properties": {
+    "rubric_id": {
+      "type": "string",
+      "description": "Unique identifier for this rubric (e.g., TOOL_GROUNDEDNESS)"
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of what this rubric evaluates"
+    },
+    "scoring_scale": {
+      "type": "object",
+      "description": "Defines the scoring scale for this rubric",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["numeric", "categorical"],
+          "description": "Type of scoring scale"
+        },
+        "min": {
+          "type": "number",
+          "description": "Minimum score for numeric scales"
+        },
+        "max": {
+          "type": "number",
+          "description": "Maximum score for numeric scales"
+        },
+        "values": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Valid values for categorical scales"
+        }
+      }
+    },
+    "aggregation_type": {
+      "type": "string",
+      "enum": ["median", "mean", "majority_vote"],
+      "description": "How to aggregate repeated judge outputs (median/mean for numeric, majority_vote for categorical)"
+    },
+    "requires_llm_judge": {
+      "type": "boolean",
+      "description": "Whether this rubric requires LLM judge evaluation (false for deterministic rubrics)"
+    },
+    "evidence_selectors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "JSONPath expressions to extract relevant data from NormalizedRun"
+    },
+    "scope": {
+      "type": "string",
+      "enum": ["turn", "run"],
+      "description": "Whether this rubric evaluates individual turns or the entire run"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+judges:
+  - judge_id: mock-judge-1
+    provider: mock
+    model_id: mock-model-v1
+    params:
+      temperature: 0.0
+      max_tokens: 1024
+    timeout_seconds: 30
+  
+  - judge_id: mock-judge-2
+    provider: mock
+    model_id: mock-model-v2
+    params:
+      temperature: 0.0
+      max_tokens: 1024
+    timeout_seconds: 30

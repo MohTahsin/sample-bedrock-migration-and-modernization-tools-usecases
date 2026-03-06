@@ -389,7 +389,7 @@ class AdapterConfig:
     # Public API - Classify Section
     # -------------------------------------------------------------------------
     
-    def classify_event(self, event: Dict[str, Any]) -> Tuple[str, Optional[str]]:
+    def classify_event(self, event: Dict[str, Any]) -> Tuple[str, Optional[str], Optional[str]]:
         """
         Classify event into a kind based on classification rules.
         
@@ -399,18 +399,52 @@ class AdapterConfig:
             event: Event dictionary to classify
             
         Returns:
-            Tuple of (kind, rule_id) where:
+            Tuple of (kind, rule_id, kind_reason) where:
             - kind: Event kind (e.g., "USER_INPUT", "TOOL_CALL", "EVENT")
             - rule_id: ID of matching rule, or None if default kind used
+            - kind_reason: Human-readable explanation of why this kind was assigned
         """
         for rule in self._validated_config.classify.rules:
-            if self._rule_matches(rule, event):
-                return (rule.kind, rule.id)
+            matched, match_detail = self._rule_matches(rule, event)
+            if matched:
+                # Build kind_reason from match_detail
+                kind_reason = self._build_kind_reason(rule, match_detail)
+                return (rule.kind, rule.id, kind_reason)
         
         # No rule matched, use default kind
-        return (self._validated_config.classify.default_kind, None)
+        return (self._validated_config.classify.default_kind, None, "No classification rule matched; using default kind")
     
-    def _rule_matches(self, rule, event: Dict[str, Any]) -> bool:
+    def _build_kind_reason(self, rule, match_detail: Dict[str, Any]) -> str:
+        """
+        Build a human-readable kind_reason from match details.
+        
+        Args:
+            rule: ClassificationRule that matched
+            match_detail: Dictionary with matched condition details
+            
+        Returns:
+            Human-readable reason string
+        """
+        parts = [f"Matched rule '{rule.id}'"]
+        
+        if match_detail.get("matched_conditions"):
+            for cond in match_detail["matched_conditions"][:3]:  # Limit to first 3 for brevity
+                field = cond.get("field", "?")
+                op = cond.get("op", "?")
+                
+                if op == "regex":
+                    pattern = cond.get("pattern", "?")
+                    parts.append(f"{field} matches regex '{pattern[:50]}'")
+                elif op == "exists":
+                    exists_val = cond.get("exists_value", True)
+                    parts.append(f"{field} {'exists' if exists_val else 'does not exist'}")
+                elif op == "equals":
+                    equals_val = cond.get("equals_value", "?")
+                    parts.append(f"{field} equals '{equals_val}'")
+        
+        return "; ".join(parts)
+    
+    def _rule_matches(self, rule, event: Dict[str, Any]) -> Tuple[bool, Dict[str, Any]]:
         """
         Check if a classification rule matches an event.
         
@@ -419,29 +453,48 @@ class AdapterConfig:
             event: Event dictionary
             
         Returns:
-            True if rule matches, False otherwise
+            Tuple of (matched, match_detail) where:
+            - matched: True if rule matches, False otherwise
+            - match_detail: Dictionary with details about which conditions matched
         """
+        match_detail = {
+            "rule_id": rule.id,
+            "kind": rule.kind,
+            "matched_conditions": []
+        }
+        
         # Check 'all' conditions (all must match)
         if rule.all:
             for idx, condition in enumerate(rule.all):
-                if not self._condition_matches(condition, event, rule.id, idx, 'all'):
-                    return False
+                matched, witness = self._condition_matches_with_witness(condition, event, rule.id, idx, 'all')
+                if not matched:
+                    return (False, {})
+                match_detail["matched_conditions"].append(witness)
         
         # Check 'any' conditions (at least one must match)
         if rule.any:
             any_matched = False
             for idx, condition in enumerate(rule.any):
-                if self._condition_matches(condition, event, rule.id, idx, 'any'):
+                matched, witness = self._condition_matches_with_witness(condition, event, rule.id, idx, 'any')
+                if matched:
                     any_matched = True
-                    break
+                    match_detail["matched_conditions"].append(witness)
+                    break  # First match wins for 'any'
             if not any_matched:
-                return False
+                return (False, {})
         
-        return True
+        return (True, match_detail)
     
-    def _condition_matches(self, condition, event: Dict[str, Any], rule_id: str, condition_idx: int, condition_type: str) -> bool:
+    def _condition_matches_with_witness(
+        self, 
+        condition, 
+        event: Dict[str, Any], 
+        rule_id: str, 
+        condition_idx: int, 
+        condition_type: str
+    ) -> Tuple[bool, Dict[str, Any]]:
         """
-        Check if a single condition matches an event.
+        Check if a single condition matches an event and return match witness.
         
         Args:
             condition: ClassificationCondition from config
@@ -451,19 +504,47 @@ class AdapterConfig:
             condition_type: Either 'all' or 'any'
             
         Returns:
-            True if condition matches, False otherwise
+            Tuple of (matched, witness) where:
+            - matched: True if condition matches, False otherwise
+            - witness: Dictionary with match details (field, op, pattern/value, etc.)
         """
         # Get field value using alias fallback
         value = self.get_field_value_with_fallback(event, condition.field)
         
+        # Truncate value for preview (avoid huge strings in metadata)
+        value_preview = str(value)[:200] if value is not None else None
+        
+        witness = {
+            "combinator": condition_type,
+            "field": condition.field,
+            "value_preview": value_preview
+        }
+        
         # Check 'exists' condition
         if condition.exists is not None:
-            return (value is not None) == condition.exists
+            matched = (value is not None) == condition.exists
+            witness["op"] = "exists"
+            witness["exists_value"] = condition.exists
+            return (matched, witness)
+        
+        # Check 'equals' condition
+        if condition.equals is not None:
+            if value is None:
+                witness["op"] = "equals"
+                witness["equals_value"] = condition.equals
+                return (False, witness)
+            
+            matched = str(value) == str(condition.equals)
+            witness["op"] = "equals"
+            witness["equals_value"] = condition.equals
+            return (matched, witness)
         
         # Check 'regex' condition
         if condition.regex is not None:
             if value is None:
-                return False
+                witness["op"] = "regex"
+                witness["pattern"] = condition.regex
+                return (False, witness)
             
             # Get compiled regex pattern using the exact key format from _compile_regex_patterns
             regex_key = f"classify.rule.{rule_id}.{condition_type}.{condition.field}.{condition_idx}"
@@ -479,9 +560,13 @@ class AdapterConfig:
                 )
             
             # Match against string value
-            return bool(pattern.search(str(value)))
+            matched = bool(pattern.search(str(value)))
+            witness["op"] = "regex"
+            witness["pattern"] = condition.regex
+            return (matched, witness)
         
-        return False
+        # Should never reach here due to Pydantic validation
+        return (False, witness)
     
     def get_default_kind(self) -> str:
         """
@@ -554,6 +639,16 @@ class AdapterConfig:
             True if strategy reason should be included in output
         """
         return self._validated_config.segment.emit_strategy_reason
+    
+    def should_emit_debug_fields(self) -> bool:
+        """
+        Check if debug fields (like fields_source) should be emitted.
+        
+        Returns:
+            True if debug fields should be included in output (default: False for production)
+        """
+        # Default to False for production - can be made configurable later
+        return getattr(self._validated_config, 'emit_debug_fields', False)
     
     def get_min_events_per_turn(self) -> int:
         """

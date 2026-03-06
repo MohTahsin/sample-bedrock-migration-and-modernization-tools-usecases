@@ -1,0 +1,50 @@
+{
+  "trace_id": "raw-noisy-003",
+  "events": [
+    {
+      "timestamp": "2026-03-06T12:00:00Z",
+      "type": "user_message",
+      "turn_id": "turn-1",
+      "content": "What is 25 multiplied by 4?",
+      "request_headers": {
+        "x-request-id": "abc-123",
+        "authorization": "redacted"
+      }
+    },
+    {
+      "timestamp": "2026-03-06T12:00:01Z",
+      "type": "tool_call",
+      "turn_id": "turn-1",
+      "tool_name": "calculator",
+      "input": "25*4",
+      "content": "calculator invoked",
+      "tool_runtime_debug": {
+        "container_id": "c-001",
+        "memory_limit_mb": 512
+      }
+    },
+    {
+      "timestamp": "2026-03-06T12:00:02Z",
+      "type": "tool_result",
+      "turn_id": "turn-1",
+      "tool_name": "calculator",
+      "output": "100",
+      "content": "100",
+      "irrelevant_score": 0.1234
+    },
+    {
+      "timestamp": "2026-03-06T12:00:03Z",
+      "type": "agent_response",
+      "turn_id": "turn-1",
+      "content": "25 multiplied by 4 is 100.",
+      "unused_final_metadata": {
+        "render_mode": "markdown",
+        "client_version": "1.2.3"
+      }
+    }
+  ],
+  "observability": {
+    "trace_flags": "01",
+    "span_count": 44
+  }
+}

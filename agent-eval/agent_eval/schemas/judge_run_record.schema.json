@@ -1,0 +1,68 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Judge Run Record",
+  "description": "Schema for individual judge execution records in judge_runs.jsonl",
+  "type": "object",
+  "required": ["job_id", "run_id", "rubric_id", "judge_id", "repeat_index", "timestamp", "status"],
+  "additionalProperties": false,
+  "properties": {
+    "job_id": {
+      "type": "string",
+      "description": "Unique identifier for this judge job"
+    },
+    "run_id": {
+      "type": "string",
+      "description": "Run identifier from NormalizedRun"
+    },
+    "turn_id": {
+      "type": ["string", "null"],
+      "description": "Turn identifier (null for run-level rubrics)"
+    },
+    "rubric_id": {
+      "type": "string",
+      "description": "Rubric being evaluated"
+    },
+    "judge_id": {
+      "type": "string",
+      "description": "Judge that performed the evaluation"
+    },
+    "repeat_index": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Repeat index (0 to repeats-1)"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when evaluation was performed"
+    },
+    "raw_response": {
+      "type": ["string", "object", "null"],
+      "description": "Raw response from judge LLM"
+    },
+    "parsed_response": {
+      "type": ["object", "null"],
+      "description": "Parsed response matching judge_response.schema.json"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["success", "failure", "timeout", "invalid_response"],
+      "description": "Execution status"
+    },
+    "error": {
+      "type": ["string", "null"],
+      "description": "Error message if status is not success"
+    },
+    "latency_ms": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "description": "Execution time in milliseconds"
+    },
+    "retry_count": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0,
+      "description": "Number of retries attempted"
+    }
+  }
+}

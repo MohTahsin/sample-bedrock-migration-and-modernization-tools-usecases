@@ -286,6 +286,14 @@ classify:
           exists: true
         - field: tool_input
           exists: true
+    
+    # Looser tool call detection (placed after strict rule)
+    - id: tool_call_by_type
+      kind: TOOL_CALL
+      all:
+        - field: tool_name
+          exists: true
+      any:
         - field: event_type
           regex: "(?i)invocation|tool(_call|_invoke)?|function\\.call"
         - field: operation
@@ -434,6 +442,8 @@ confidence:
       no_anchor_found: 0.3
       no_llm_output: 0.2
       missing_latency: 0.2
+      single_turn_fallback: 0.25
+      orphan_tool_results: 0.15
   emit_fields:
     - "run_confidence"
     - "turn_confidence"

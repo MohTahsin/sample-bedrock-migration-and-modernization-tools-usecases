@@ -1,0 +1,27 @@
+version: "1.0"
+rubrics:
+  - rubric_id: accuracy
+    description: "Evaluate factual accuracy"
+    weight: 1.0
+    severity: medium
+    enabled: true
+    scope: turn
+    scope_behavior: per_turn
+    scoring_scale:
+      type: numeric
+      min: 1
+      max: 5
+    aggregation_type: median
+    run_aggregation_policy: standard
+    requires_llm_judge: true
+    evaluation_instructions: |
+      Evaluate accuracy:
+      User: {user_query}
+      Agent: {final_answer}
+      
+      Rate 1-5. Respond: {"score": <number>, "reasoning": "<text>"}
+    evidence_selectors:
+      - "$.turns[*].user_query"
+      - "$.turns[*].final_answer"
+    evidence_budget: 500
+    repeats: 2

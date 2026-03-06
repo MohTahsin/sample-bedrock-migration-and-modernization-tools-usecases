@@ -1,0 +1,39 @@
+{
+  "trace_id": "weird-001",
+  "session": "abc-123",
+  "tenant": "dev",
+  "random_blob": {
+    "debug": true,
+    "huge_array": [1,2,3,4,5,{"foo":"bar"}],
+    "metrics": {
+      "cpu": 88,
+      "memory": 234
+    }
+  },
+  "events": [
+    {
+      "timestamp": "2026-03-06T14:00:00Z",
+      "type": "user_message",
+      "turn_id": "turn-a",
+      "content": "Who discovered gravity?",
+      "ui_state": {
+        "window_size": "large",
+        "theme": "dark"
+      }
+    },
+    {
+      "timestamp": "2026-03-06T14:00:01Z",
+      "type": "agent_response",
+      "turn_id": "turn-a",
+      "content": "Gravity was famously described by Isaac Newton.",
+      "token_debug": {
+        "prompt_tokens": 120,
+        "completion_tokens": 25
+      }
+    }
+  ],
+  "frontend_logs": [
+    {"event": "scroll"},
+    {"event": "click"}
+  ]
+}

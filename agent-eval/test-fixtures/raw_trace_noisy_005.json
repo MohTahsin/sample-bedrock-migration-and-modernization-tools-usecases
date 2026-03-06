@@ -1,0 +1,55 @@
+{
+  "trace_id": "raw-noisy-005",
+  "session_id": "sess-005",
+  "events": [
+    {
+      "timestamp": "2026-03-06T13:00:00Z",
+      "type": "user_message",
+      "turn_id": "turn-1",
+      "content": "Who wrote Hamlet?",
+      "raw_http_body": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    {
+      "timestamp": "2026-03-06T13:00:01Z",
+      "type": "agent_response",
+      "turn_id": "turn-1",
+      "content": "Hamlet was written by William Shakespeare.",
+      "duplicate_candidate": true
+    },
+    {
+      "timestamp": "2026-03-06T13:00:01Z",
+      "type": "agent_response",
+      "turn_id": "turn-1",
+      "content": "Hamlet was written by William Shakespeare.",
+      "duplicate_candidate": true,
+      "delivery_attempt": 2
+    },
+    {
+      "timestamp": "2026-03-06T13:01:00Z",
+      "type": "user_message",
+      "turn_id": "turn-2",
+      "content": "In one line, what is photosynthesis?",
+      "frontend_state": {
+        "tab": "chat",
+        "scrollY": 1880
+      }
+    },
+    {
+      "timestamp": "2026-03-06T13:01:01Z",
+      "type": "agent_response",
+      "turn_id": "turn-2",
+      "content": "Photosynthesis is the process plants use to convert light, water, and carbon dioxide into food and oxygen.",
+      "huge_unused_payload": {
+        "data": ["a", "b", "c", "d", "e"],
+        "flags": {
+          "f1": true,
+          "f2": false
+        }
+      }
+    }
+  ],
+  "extra": {
+    "source": "manual-test",
+    "operator": "integration-suite"
+  }
+}
