@@ -1,0 +1,39 @@
+{
+  "events": [
+    {
+      "event_type": "USER_INPUT",
+      "timestamp": "2024-03-09T10:00:00Z",
+      "session_id": "session-012",
+      "trace_id": "trace-012",
+      "turn_id": "1",
+      "content": "Search for weather"
+    },
+    {
+      "event_type": "TOOL_CALL",
+      "timestamp": "2024-03-09T10:00:01Z",
+      "session_id": "session-012",
+      "trace_id": "trace-012",
+      "turn_id": "1",
+      "span_id": "span-abc-123",
+      "tool_name": "search",
+      "tool_input": {"query": "weather"}
+    },
+    {
+      "event_type": "TOOL_RESULT",
+      "timestamp": "2024-03-09T10:00:02Z",
+      "session_id": "session-012",
+      "trace_id": "trace-012",
+      "turn_id": "1",
+      "parent_span_id": "span-abc-123",
+      "result": {"items": ["sunny", "cloudy"]}
+    },
+    {
+      "event_type": "ASSISTANT_OUTPUT",
+      "timestamp": "2024-03-09T10:00:03Z",
+      "session_id": "session-012",
+      "trace_id": "trace-012",
+      "turn_id": "1",
+      "content": "Found weather results."
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "session_id": "sess-bad-001",
+  "trace_id": "trace-bad-001",
+  "events": [
+    {
+      "timestamp": "2026-03-09T10:03:00Z",
+      "type": "user_message",
+      "turn_id": "turn-1",
+      "content": "What is 2 + 2?"
+    },
+    {
+      "timestamp": "2026-03-09T10:03:01.600Z",
+      "type": "model_output",
+      "turn_id": "turn-1",
+      "content": "2 + 2 equals 5."
+    }
+  ]
+}

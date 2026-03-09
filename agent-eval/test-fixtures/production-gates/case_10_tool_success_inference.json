@@ -1,0 +1,39 @@
+{
+  "events": [
+    {
+      "event_type": "USER_INPUT",
+      "timestamp": "2024-03-09T10:00:00Z",
+      "session_id": "session-010",
+      "trace_id": "trace-010",
+      "turn_id": "1",
+      "content": "Calculate 5 * 5"
+    },
+    {
+      "event_type": "TOOL_CALL",
+      "timestamp": "2024-03-09T10:00:01Z",
+      "session_id": "session-010",
+      "trace_id": "trace-010",
+      "turn_id": "1",
+      "tool_run_id": "call-010",
+      "tool_name": "calculator",
+      "tool_input": {"expression": "5 * 5"}
+    },
+    {
+      "event_type": "TOOL_RESULT",
+      "timestamp": "2024-03-09T10:00:02Z",
+      "session_id": "session-010",
+      "trace_id": "trace-010",
+      "turn_id": "1",
+      "tool_run_id": "call-010",
+      "result": {"answer": 25}
+    },
+    {
+      "event_type": "ASSISTANT_OUTPUT",
+      "timestamp": "2024-03-09T10:00:03Z",
+      "session_id": "session-010",
+      "trace_id": "trace-010",
+      "turn_id": "1",
+      "content": "The answer is 25."
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "events": [
+    {
+      "event_type": "SYSTEM_PROMPT",
+      "timestamp": "2024-03-09T10:00:00Z",
+      "session_id": "session-014",
+      "trace_id": "trace-014",
+      "turn_id": "1",
+      "content": "You are a helpful assistant"
+    },
+    {
+      "event_type": "CONTEXT_INJECTION",
+      "timestamp": "2024-03-09T10:00:00.5Z",
+      "session_id": "session-014",
+      "trace_id": "trace-014",
+      "turn_id": "1",
+      "content": "Hidden context data"
+    },
+    {
+      "event_type": "USER_INPUT",
+      "timestamp": "2024-03-09T10:00:01Z",
+      "session_id": "session-014",
+      "trace_id": "trace-014",
+      "turn_id": "1",
+      "content": "Hello"
+    },
+    {
+      "event_type": "PROMPT_SCAFFOLDING",
+      "timestamp": "2024-03-09T10:00:01.5Z",
+      "session_id": "session-014",
+      "trace_id": "trace-014",
+      "turn_id": "1",
+      "content": "Internal prompt structure"
+    },
+    {
+      "event_type": "ASSISTANT_OUTPUT",
+      "timestamp": "2024-03-09T10:00:02Z",
+      "session_id": "session-014",
+      "trace_id": "trace-014",
+      "turn_id": "1",
+      "content": "Hi there!"
+    }
+  ]
+}

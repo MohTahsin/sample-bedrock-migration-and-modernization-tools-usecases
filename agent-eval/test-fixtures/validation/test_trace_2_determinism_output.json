@@ -1,0 +1,113 @@
+{
+  "run_id": "determinism_test_001",
+  "metadata": {
+    "segmentation_strategy_used": "TURN_ID",
+    "run_confidence": 0.8,
+    "mapping_coverage": {
+      "ids_coverage": 1.0,
+      "time_coverage": 1.0,
+      "tool_coverage": 0.0,
+      "text_coverage": 1.0,
+      "overall_mapping_coverage": 0.75
+    },
+    "adapter_version": "1.0.0",
+    "processed_at": "2026-03-09T17:01:59.217904+00:00"
+  },
+  "adapter_stats": {
+    "total_events_processed": 2,
+    "events_with_valid_timestamps": 2,
+    "events_with_missing_data": 0,
+    "dropped_events_count": 0,
+    "invalid_events_count": 0,
+    "turn_count": 1,
+    "mapping_coverage": 0.75,
+    "orphan_tool_results": [],
+    "segmentation_strategy": "TURN_ID",
+    "confidence_penalties": [
+      {
+        "reason": "no_llm_output",
+        "penalty": 0.2,
+        "location": "turn_0.output"
+      }
+    ],
+    "events_by_kind": {
+      "USER_INPUT": 1,
+      "EVENT": 1
+    },
+    "raw_path": "events",
+    "canonical_sources": {
+      "timestamp": "timestamp",
+      "session_id": "session_id",
+      "turn_id": "turn_id",
+      "event_type": "event_type",
+      "text": "text"
+    },
+    "segmentation_strategy_reason": "Found explicit turn_id fields in events"
+  },
+  "turns": [
+    {
+      "turn_id": "turn_0",
+      "request_id": null,
+      "timestamp": "2026-03-01T11:00:00+00:00",
+      "user_query": "Hello",
+      "final_answer": null,
+      "steps": [
+        {
+          "name": "user_message",
+          "status": "unknown",
+          "type": "user_message",
+          "kind": "USER_INPUT",
+          "start_ts": "2026-03-01T11:00:00+00:00",
+          "end_ts": null,
+          "latency_ms": null,
+          "span_id": null,
+          "parent_span_id": null,
+          "tool_name": null,
+          "tool_run_id": null,
+          "event_order": 0,
+          "source_index": 0,
+          "attributes": {
+            "_kind_rule_id": "user_input_by_type_or_role",
+            "_kind_reason": "Matched rule 'user_input_by_type_or_role'; event_type matches regex '(?i)user(_message|input)|human|input'"
+          },
+          "raw": {
+            "timestamp": "2026-03-01T11:00:00Z",
+            "event_type": "user_message",
+            "text": "Hello",
+            "session_id": "sess_det",
+            "turn_id": "t1"
+          }
+        },
+        {
+          "name": "assistant_message",
+          "status": "unknown",
+          "type": "assistant_message",
+          "kind": "EVENT",
+          "start_ts": "2026-03-01T11:00:01+00:00",
+          "end_ts": null,
+          "latency_ms": null,
+          "span_id": null,
+          "parent_span_id": null,
+          "tool_name": null,
+          "tool_run_id": null,
+          "event_order": 1,
+          "source_index": 1,
+          "attributes": {
+            "_kind_reason": "No classification rule matched; using default kind"
+          },
+          "raw": {
+            "timestamp": "2026-03-01T11:00:01Z",
+            "event_type": "assistant_message",
+            "text": "Hi there! How can I help?",
+            "session_id": "sess_det",
+            "turn_id": "t1"
+          }
+        }
+      ],
+      "normalized_latency_ms": 1000.0,
+      "runtime_reported_latency_ms": null,
+      "total_latency_ms": 1000.0,
+      "confidence": 0.8
+    }
+  ]
+}

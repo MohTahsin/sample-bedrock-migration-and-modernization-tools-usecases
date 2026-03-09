@@ -69,7 +69,7 @@ This document specifies the requirements for implementing a Generic JSON adapter
 
 ### Requirement 4: CloudWatch Log Extraction Utility
 
-**User Story:** As a developer, I want to extract CloudWatch logs with configurable time ranges and convert them to normalized format, so that I can analyze historical agent executions.
+**User Story:** As a developer, I want to extract CloudWatch logs with configurable time ranges and save them as Generic JSON event files, so that I can analyze historical agent executions using the Generic JSON adapter.
 
 #### Acceptance Criteria
 
@@ -78,8 +78,8 @@ This document specifies the requirements for implementing a Generic JSON adapter
 3. THE CloudWatch_Log_Extractor SHALL support configuration of time range via command-line arguments or configuration file
 4. THE CloudWatch_Log_Extractor SHALL support running without knowing the exact log group name by allowing discovery via prefix/regex pattern matching
 5. WHEN log group name is not provided and cannot be discovered, THE CloudWatch_Log_Extractor SHALL emit an explicit failure message
-6. WHEN the CloudWatch_Log_Extractor retrieves logs, THE CloudWatch_Log_Extractor SHALL parse them into Generic JSON structure and pass to the Generic_JSON_Adapter for transformation
-7. THE CloudWatch_Log_Extractor SHALL save normalized traces as individual JSON files with unique filenames based on run_id
+6. WHEN the CloudWatch_Log_Extractor retrieves logs, THE CloudWatch_Log_Extractor SHALL parse them into Generic JSON event structure (event-level fields only: timestamp, event_type, attributes, etc.) without attempting turn segmentation or final_answer extraction
+7. THE CloudWatch_Log_Extractor SHALL save Generic JSON event files with unique filenames based on log group and timestamp, which can then be processed by the Generic_JSON_Adapter separately to produce normalized output
 8. WHEN AWS credentials are missing or invalid, THE CloudWatch_Log_Extractor SHALL raise an authentication error with guidance
 9. THE CloudWatch_Log_Extractor SHALL support configuration of log group name and query filters via command-line arguments or configuration file
 10. WHEN no logs are found for the specified time range, THE CloudWatch_Log_Extractor SHALL return an empty result set without error
@@ -88,6 +88,8 @@ This document specifies the requirements for implementing a Generic JSON adapter
 
 **User Story:** As a developer, I want the Generic JSON adapter to be independent of CloudWatch APIs, so that it can process traces from any source without cloud-specific dependencies.
 
+**Note:** The CloudWatch_Log_Extractor and Generic_JSON_Adapter are intentionally decoupled. The extractor produces Generic JSON event files, and the adapter consumes them in a separate step. This separation ensures the adapter can process traces from any source (CloudWatch, local files, other cloud providers) without AWS-specific dependencies.
+
 #### Acceptance Criteria
 
 1. THE Generic_JSON_Adapter SHALL NOT import or depend on boto3 or any AWS SDK libraries
@@ -95,6 +97,7 @@ This document specifies the requirements for implementing a Generic JSON adapter
 3. THE Generic_JSON_Adapter SHALL only consume JSON files conforming to the Generic JSON format
 4. THE CloudWatch_Log_Extractor SHALL be the only module that interacts with AWS CloudWatch APIs
 5. WHEN the Generic_JSON_Adapter is tested, THE Generic_JSON_Adapter SHALL function correctly without AWS credentials or network access
+6. THE CloudWatch_Log_Extractor SHALL NOT import the Generic_JSON_Adapter to maintain strict separation of concerns
 
 ### Requirement 6: Schema Validation and Compliance
 

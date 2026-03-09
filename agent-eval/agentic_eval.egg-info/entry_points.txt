@@ -1,0 +1,2 @@
+[console_scripts]
+agentic-eval = agentic_eval.cli:main

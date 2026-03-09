@@ -1,0 +1,365 @@
+# Expected Outcomes Template for Baseline Validation Tests
+#
+# This file defines the expected outcomes for each trace in the baseline corpus.
+# Copy this to expected_outcomes.yaml and fill in the actual expected values.
+
+traces:
+  # -------------------------------------------------------------------------
+  # GOOD TRACES (3)
+  # -------------------------------------------------------------------------
+
+  good-001:
+    description: "Direct answer, no tools needed"
+    category: "clearly_good"
+    expected:
+      turn_count: 1
+      raw_tool_call_count: 0
+      normalized_tool_call_count: 0
+      tool_success_rate: null
+      latency_present: true
+      should_fail: false
+      expected_penalties: []
+      quality_band:
+        accuracy: high
+        groundedness: high
+        tool_use: high
+    expected_behavior:
+      adapter:
+        should_segment_cleanly: true
+        should_require_fallback: false
+        should_ignore_noise: true
+      evaluator:
+        should_score_well: true
+        should_flag_hallucination: false
+    notes:
+      - "Clean single-turn response"
+      - "No parser failures expected"
+      - "No tool activity expected"
+      - "Question: What is the capital of France?"
+      - "Answer: The capital of France is Paris."
+
+  good-002:
+    description: "Tool used correctly, answer grounded"
+    category: "clearly_good"
+    expected:
+      turn_count: 1
+      raw_tool_call_count: 1
+      normalized_tool_call_count: 1
+      tool_success_rate: 1.0
+      latency_present: true
+      should_fail: false
+      expected_penalties: []
+      quality_band:
+        accuracy: high
+        groundedness: high
+        tool_use: high
+    expected_behavior:
+      adapter:
+        should_segment_cleanly: true
+        should_require_fallback: false
+        should_ignore_noise: true
+      evaluator:
+        should_score_well: true
+        should_flag_hallucination: false
+    notes:
+      - "Final answer should align with tool result"
+      - "Tool latency should be captured"
+      - "Question: What is the weather in Seattle today?"
+      - "Tool: weather_api"
+      - "Tool result: 58°F, Rain"
+      - "Answer: It is 58°F and rainy in Seattle today."
+
+  good-003:
+    description: "Two-turn conversation with noise"
+    category: "clearly_good"
+    expected:
+      turn_count: 2
+      raw_tool_call_count: 1
+      normalized_tool_call_count: 1
+      tool_success_rate: 1.0
+      latency_present: true
+      should_fail: false
+      expected_penalties: []
+      quality_band:
+        accuracy: high
+        groundedness: high
+        tool_use: high
+    expected_behavior:
+      adapter:
+        should_segment_cleanly: true
+        should_require_fallback: false
+        should_ignore_noise: true
+      evaluator:
+        should_score_well: true
+        should_flag_hallucination: false
+    notes:
+      - "Multi-turn handling must work"
+      - "Noise event should be ignored"
+      - "Turn 1: Who wrote Hamlet? → William Shakespeare"
+      - "Turn 2: When was it first performed approximately? → Around 1600"
+      - "Only second turn contains tool usage"
+
+  # -------------------------------------------------------------------------
+  # BAD TRACES (3)
+  # -------------------------------------------------------------------------
+
+  bad-001:
+    description: "Clearly wrong answer, no tools"
+    category: "clearly_bad"
+    expected:
+      turn_count: 1
+      raw_tool_call_count: 0
+      normalized_tool_call_count: 0
+      tool_success_rate: null
+      latency_present: true
+      should_fail: false
+      expected_penalties: []
+      quality_band:
+        accuracy: low
+        groundedness: low
+        tool_use: low
+    expected_behavior:
+      adapter:
+        should_segment_cleanly: true
+        should_require_fallback: false
+        should_ignore_noise: true
+      evaluator:
+        should_score_well: false
+        should_flag_hallucination: true
+    notes:
+      - "Factually incorrect answer"
+      - "Question: What is 2 + 2?"
+      - "Answer: 2 + 2 equals 5. (WRONG)"
+      - "Should score poorly for correctness"
+
+  bad-002:
+    description: "Tool used but result ignored"
+    category: "clearly_bad"
+    expected:
+      turn_count: 1
+      raw_tool_call_count: 1
+      normalized_tool_call_count: 1
+      tool_success_rate: 1.0
+      latency_present: true
+      should_fail: false
+      expected_penalties: []
+      quality_band:
+        accuracy: low
+        groundedness: low
+        tool_use: low
+    expected_behavior:
+      adapter:
+        should_segment_cleanly: true
+        should_require_fallback: false
+        should_ignore_noise: true
+      evaluator:
+        should_score_well: false
+        should_flag_hallucination: true
+    notes:
+      - "Tool returned correct data but answer contradicts it"
+      - "Question: What is the weather in Austin?"
+      - "Tool result: 84°F, Sunny"
+      - "Answer: It is snowing in Austin. (WRONG)"
+      - "Should score poorly for groundedness and tool use"
+
+  bad-003:
+    description: "Failed tool and hallucinated confident answer"
+    category: "clearly_bad"
+    expected:
+      turn_count: 1
+      raw_tool_call_count: 1
+      normalized_tool_call_count: 1
+      tool_success_rate: 0.0
+      latency_present: true
+      should_fail: false
+      expected_penalties: []
+      quality_band:
+        accuracy: low
+        groundedness: low
+        tool_use: low
+    expected_behavior:
+      adapter:
+        should_segment_cleanly: true
+        should_require_fallback: false
+        should_ignore_noise: true
+      evaluator:
+        should_score_well: false
+        should_flag_hallucination: true
+    notes:
+      - "Tool failed with error"
+      - "Agent hallucinated specific answer despite failure"
+      - "Question: What is my current account balance?"
+      - "Tool error: upstream timeout"
+      - "Answer: Your current balance is $12,481.22. (HALLUCINATED)"
+      - "Should score very poorly for groundedness"
+
+  # -------------------------------------------------------------------------
+  # PARTIAL / AMBIGUOUS TRACES (2)
+  # -------------------------------------------------------------------------
+
+  partial-001:
+    description: "Incomplete but acceptable answer"
+    category: "partial"
+    expected:
+      turn_count: 1
+      raw_tool_call_count: 0
+      normalized_tool_call_count: 0
+      tool_success_rate: null
+      latency_present: true
+      should_fail: false
+      expected_penalties: []
+      quality_band:
+        accuracy: medium
+        groundedness: medium
+        tool_use: medium
+    expected_behavior:
+      adapter:
+        should_segment_cleanly: true
+        should_require_fallback: false
+        should_ignore_noise: true
+      evaluator:
+        should_score_well: partially
+        should_flag_hallucination: false
+    notes:
+      - "Answer is correct but very brief"
+      - "Question: Explain photosynthesis briefly for a 10-year-old."
+      - "Answer: Plants use sunlight to make food."
+      - "Technically correct but lacks detail"
+      - "Should not be scored as clearly bad"
+
+  partial-002:
+    description: "Answer hedged, tool missing"
+    category: "ambiguous"
+    expected:
+      turn_count: 1
+      raw_tool_call_count: 0
+      normalized_tool_call_count: 0
+      tool_success_rate: null
+      latency_present: true
+      should_fail: false
+      expected_penalties: []
+      quality_band:
+        accuracy: medium
+        groundedness: medium
+        tool_use: low
+    expected_behavior:
+      adapter:
+        should_segment_cleanly: true
+        should_require_fallback: false
+        should_ignore_noise: true
+      evaluator:
+        should_score_well: partially
+        should_flag_hallucination: false
+    notes:
+      - "Agent hedges instead of using a tool"
+      - "Question: What time does the downtown library close today?"
+      - "Answer: I think it may close around 5 PM, but you may want to verify."
+      - "Should be scored lower on tool use than on safety"
+      - "Not a pure hallucination, but not a strong answer either"
+
+  # -------------------------------------------------------------------------
+  # WEIRD TOOL PATH TRACES (2)
+  # -------------------------------------------------------------------------
+
+  weird-001:
+    description: "Duplicate tool call events"
+    category: "tool_weird"
+    expected:
+      turn_count: 1
+      raw_tool_call_count: 2
+      normalized_tool_call_count: 1
+      tool_success_rate: 1.0
+      latency_present: true
+      should_fail: false
+      expected_penalties: []
+      quality_band:
+        accuracy: high
+        groundedness: high
+        tool_use: medium
+    expected_behavior:
+      adapter:
+        should_segment_cleanly: true
+        should_require_fallback: false
+        should_ignore_noise: true
+        should_dedupe_duplicate_tool_calls: true
+      evaluator:
+        should_score_well: true
+        should_flag_hallucination: false
+    notes:
+      - "Two identical tool.call events with same tool.call.id"
+      - "Should normalize to a single logical tool call"
+      - "Question: Search for the population of Canada."
+      - "Tool: search_tool (called twice with same ID)"
+      - "Answer: Canada has about 40 million people."
+      - "If dedupe fails, tool-count metric will be wrong"
+
+  weird-002:
+    description: "Orphan tool result, missing linkage"
+    category: "tool_weird"
+    expected:
+      turn_count: 1
+      raw_tool_call_count: 0
+      normalized_tool_call_count: 0
+      inferred_tool_call_count: 0
+      tool_success_rate: null
+      latency_present: true
+      should_fail: false
+      expected_penalties:
+        - "orphan_tool_results"
+      quality_band:
+        accuracy: medium
+        groundedness: medium
+        tool_use: low
+    expected_behavior:
+      adapter:
+        should_segment_cleanly: true
+        should_require_fallback: false
+        should_ignore_noise: true
+        should_handle_orphan_tool_result: true
+      evaluator:
+        should_score_well: partially
+        should_flag_hallucination: false
+    notes:
+      - "tool.result event appears without corresponding tool.call"
+      - "Adapter should handle gracefully and preserve trace"
+      - "Should likely apply orphan-tool penalty"
+      - "Question: What is the stock price of XYZ right now?"
+      - "Tool result appears: XYZ is trading at 91.32"
+      - "Answer: XYZ is trading at 91.32."
+      - "Groundedness may still be acceptable, but tool-use accounting is weak"
+
+# -------------------------------------------------------------------------
+# Metadata
+# -------------------------------------------------------------------------
+
+metadata:
+  version: "1.1"
+  created: "2026-03-09"
+  description: "Expected outcomes for 10-trace baseline validation corpus"
+  total_traces: 10
+  categories:
+    clearly_good: 3
+    clearly_bad: 3
+    partial: 1
+    ambiguous: 1
+    tool_weird: 2
+
+  validation_rules:
+    turn_count: "Exact match required"
+    raw_tool_call_count: "Exact match required when raw trace structure is stable"
+    normalized_tool_call_count: "Exact match required after adapter normalization"
+    inferred_tool_call_count: "Informational only unless explicitly asserted in tests"
+    tool_success_rate: "±0.01 tolerance for floating point"
+    latency_values: "Presence required; exact values may use ±5% tolerance if asserted"
+    expected_penalties: "Subset match is acceptable unless exact penalty contract is required"
+    quality_bands: "Informational baseline for judge validation; not strict deterministic assertions"
+
+  scoring_interpretation:
+    high: "Expected to be clearly strong"
+    medium: "Expected to be mixed / acceptable / partial"
+    low: "Expected to be clearly weak"
+
+  corpus_purpose:
+    - "Validate adapter normalization on raw OTEL-style traces"
+    - "Validate deterministic metrics such as turn counts, tool counts, and latency presence"
+    - "Validate judge behavior across clearly good, clearly bad, ambiguous, and weird tool-path cases"

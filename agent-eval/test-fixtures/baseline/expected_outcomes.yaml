@@ -1,0 +1,259 @@
+# Expected Outcomes Template for Baseline Validation Tests
+#
+# This file defines the expected outcomes for each trace in the baseline corpus.
+# Copy this to expected_outcomes.yaml and fill in the actual expected values.
+
+traces:
+  # -------------------------------------------------------------------------
+  # GOOD TRACES (3)
+  # -------------------------------------------------------------------------
+  
+  good-001:
+    description: "Direct answer, no tools needed"
+    category: "clearly_good"
+    expected:
+      turn_count: 1
+      tool_call_count: 0
+      latency_present: true
+      should_fail: false
+      quality_band:
+        accuracy: high
+        groundedness: high
+        tool_use: high
+    notes:
+      - "Clean single-turn response"
+      - "No parser failures expected"
+      - "Question: What is the capital of France?"
+      - "Answer: The capital of France is Paris."
+  
+  good-002:
+    description: "Tool used correctly, answer grounded"
+    category: "clearly_good"
+    expected:
+      turn_count: 1
+      tool_call_count: 1
+      tool_success_rate: 1.0
+      latency_present: true
+      should_fail: false
+      quality_band:
+        accuracy: high
+        groundedness: high
+        tool_use: high
+    notes:
+      - "Final answer should align with tool result"
+      - "Tool latency should be captured"
+      - "Question: What is the weather in Seattle today?"
+      - "Tool: weather_api"
+      - "Answer: It is 58°F and rainy in Seattle today."
+  
+  good-003:
+    description: "Two-turn conversation with noise filtering"
+    category: "clearly_good"
+    expected:
+      turn_count: 2
+      tool_call_count: 1
+      tool_success_rate: 1.0
+      latency_present: true
+      should_fail: false
+      quality_band:
+        accuracy: high
+        groundedness: high
+        tool_use: high
+    notes:
+      - "Multi-turn handling with same session_id"
+      - "Turn 1: turn_id='turn-1', Turn 2: turn_id='turn-2'"
+      - "Noise events should be filtered: debug.log, internal.metric"
+      - "Turn 1: Who wrote Hamlet? → William Shakespeare"
+      - "Turn 2: When was it first performed? → Around 1600 (with tool)"
+  
+  # -------------------------------------------------------------------------
+  # BAD TRACES (3)
+  # -------------------------------------------------------------------------
+  
+  bad-001:
+    description: "Clearly wrong answer, no tools"
+    category: "clearly_bad"
+    expected:
+      turn_count: 1
+      tool_call_count: 0
+      latency_present: true
+      should_fail: false
+      quality_band:
+        accuracy: low
+        groundedness: low
+        tool_use: low
+    notes:
+      - "Factually incorrect answer"
+      - "Question: What is 2 + 2?"
+      - "Answer: 2 + 2 equals 5. (WRONG)"
+  
+  bad-002:
+    description: "Tool used but result ignored"
+    category: "clearly_bad"
+    expected:
+      turn_count: 1
+      tool_call_count: 1
+      tool_success_rate: 1.0
+      latency_present: true
+      should_fail: false
+      quality_band:
+        accuracy: low
+        groundedness: low
+        tool_use: low
+    notes:
+      - "Tool returned correct data but answer contradicts it"
+      - "Question: What is the weather in Austin?"
+      - "Tool result: 84°F, Sunny"
+      - "Answer: It is snowing in Austin. (WRONG)"
+  
+  bad-003:
+    description: "Failed tool and hallucinated confident answer"
+    category: "clearly_bad"
+    expected:
+      turn_count: 1
+      tool_call_count: 1
+      tool_success_rate: 0.0
+      latency_present: true
+      should_fail: false
+      quality_band:
+        accuracy: low
+        groundedness: low
+        tool_use: low
+    notes:
+      - "Tool failed with error"
+      - "Agent hallucinated specific answer despite failure"
+      - "Question: What is my current account balance?"
+      - "Tool error: upstream timeout"
+      - "Answer: Your current balance is $12,481.22. (HALLUCINATED)"
+  
+  # -------------------------------------------------------------------------
+  # PARTIAL / AMBIGUOUS TRACES (2)
+  # -------------------------------------------------------------------------
+  
+  partial-001:
+    description: "Incomplete but acceptable answer"
+    category: "partial"
+    expected:
+      turn_count: 1
+      tool_call_count: 0
+      latency_present: true
+      should_fail: false
+      quality_band:
+        accuracy: medium
+        groundedness: medium
+        tool_use: medium
+    notes:
+      - "Answer is correct but very brief"
+      - "Question: Explain photosynthesis briefly for a 10-year-old."
+      - "Answer: Plants use sunlight to make food."
+      - "Technically correct but lacks detail"
+  
+  partial-002:
+    description: "Answer hedged, tool missing"
+    category: "ambiguous"
+    expected:
+      turn_count: 1
+      tool_call_count: 0
+      tool_success_rate: null
+      latency_present: true
+      should_fail: false
+      quality_band:
+        accuracy: low-medium
+        groundedness: low-medium
+        tool_use: low
+    notes:
+      - "Agent hedges instead of using a tool"
+      - "Question: What time does the downtown library close today?"
+      - "Answer: I think it may close around 5 PM, but you may want to verify."
+      - "Should be scored lower on tool use than on safety"
+      - "Not a pure hallucination, but not a strong answer either"
+  
+  ambiguous-001:
+    description: "Answer hedged, tool missing"
+    category: "ambiguous"
+    expected:
+      turn_count: 1
+      tool_call_count: 0
+      latency_present: true
+      should_fail: false
+      quality_band:
+        accuracy: low-medium
+        groundedness: low-medium
+        tool_use: low
+    notes:
+      - "Agent hedges without using available tools"
+      - "Question: What time does the downtown library close today?"
+      - "Answer: I think it may close around 5 PM, but you may want to verify."
+      - "Should have used a tool to get accurate information"
+  
+  # -------------------------------------------------------------------------
+  # WEIRD TOOL PATH TRACES (2)
+  # -------------------------------------------------------------------------
+  
+  weird-001:
+    description: "Duplicate tool call events"
+    category: "tool_weird"
+    expected:
+      turn_count: 1
+      tool_call_count: 1  # After deduplication
+      tool_call_count_raw: 2  # Before deduplication
+      tool_success_rate: 1.0
+      latency_present: true
+      should_fail: false
+      quality_band:
+        accuracy: medium-high
+        groundedness: high
+        tool_use: medium-high
+    notes:
+      - "Two identical tool.call events with same tool.call.id"
+      - "Should be deduplicated to single tool call"
+      - "Question: Search for the population of Canada."
+      - "Tool: search_tool (called twice with same ID)"
+      - "Answer: Canada has about 40 million people."
+  
+  weird-002:
+    description: "Orphan tool result, missing linkage"
+    category: "tool_weird"
+    expected:
+      turn_count: 1
+      tool_call_count: 0  # No tool.call event, only orphan result
+      raw_tool_calls: 0
+      normalized_tool_calls: 0
+      orphan_tool_results_count: 1  # One orphan result detected
+      latency_present: true
+      should_fail: false
+      quality_band:
+        accuracy: medium-low
+        groundedness: medium-low
+        tool_use: low
+    notes:
+      - "tool.result event without corresponding tool.call"
+      - "Adapter should handle gracefully"
+      - "Orphan result tracked in adapter_stats.orphan_tool_results"
+      - "Confidence penalty: orphan_tool_results (0.15)"
+      - "Question: What is the stock price of XYZ right now?"
+      - "Tool result appears: XYZ is trading at 91.32"
+      - "Answer: XYZ is trading at 91.32."
+
+# -------------------------------------------------------------------------
+# Metadata
+# -------------------------------------------------------------------------
+
+metadata:
+  version: "1.0"
+  created: "2024-01-01"
+  description: "Expected outcomes for 11-trace baseline validation corpus"
+  total_traces: 11
+  categories:
+    clearly_good: 3
+    clearly_bad: 3
+    partial: 2
+    ambiguous: 1
+    tool_weird: 2
+  
+  validation_rules:
+    turn_count: "Exact match required"
+    tool_call_count: "Exact match required (after normalization)"
+    tool_success_rate: "±0.01 tolerance for floating point"
+    latency_values: "±5% tolerance for computed values"
+    quality_bands: "Informational only, not validated by tests"

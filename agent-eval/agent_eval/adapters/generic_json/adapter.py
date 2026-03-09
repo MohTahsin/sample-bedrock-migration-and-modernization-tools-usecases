@@ -2,7 +2,7 @@
 Generic JSON adapter implementation for trace normalization.
 
 This module implements the core adapter logic for transforming Generic JSON
-trace files into the normalized schema format. It uses a multi-stage pipeline:
+trace files or in-memory trace dicts into the normalized schema format. It uses a multi-stage pipeline:
 
 Stage A - Normalize: Event discovery, field mapping, timestamp parsing, classification
 Stage B - Segment: Turn segmentation for multi-turn conversations
@@ -16,8 +16,8 @@ implements graceful degradation with confidence scoring for missing data.
 
 Public API:
     adapt(path, config_path=None) -> Dict[str, Any]
-        Main entry point for trace normalization. Loads a Generic JSON trace
-        file and transforms it into the normalized schema format.
+        Main entry point for trace normalization. Accepts a file path or in-memory
+        trace dict and transforms it into the normalized schema format.
 
 Constants:
     DEFAULT_CONFIG_PATH: Path
@@ -29,10 +29,11 @@ Constants:
         Included in metadata.adapter_version field of normalized output.
 
 Exception Taxonomy:
-    InputError: Raised for file I/O issues
+    InputError: Raised for file I/O issues or invalid input types
         - File not found
         - Invalid JSON syntax
         - Unreadable input files
+        - Invalid input type (not file path or dict)
         
     ValidationError: Raised for schema/data validation issues
         - No events found in trace
@@ -47,11 +48,15 @@ Exception Taxonomy:
 Example Usage:
     >>> from agent_eval.adapters.generic_json import adapt
     >>> 
-    >>> # Basic usage with default config
+    >>> # Basic usage with file path
     >>> result = adapt("trace.json")
     >>> print(f"Run ID: {result['run_id']}")
     >>> print(f"Turns: {len(result['turns'])}")
     >>> print(f"Confidence: {result['metadata']['run_confidence']:.2f}")
+    >>> 
+    >>> # With in-memory dict (for testing/programmatic use)
+    >>> trace_dict = {"events": [...]}
+    >>> result = adapt(trace_dict)
     >>> 
     >>> # With custom config
     >>> result = adapt("trace.json", config_path="custom_config.yaml")
@@ -93,14 +98,14 @@ ADAPTER_VERSION = "1.0.0"
 logger = logging.getLogger(__name__)
 
 
-def adapt(path: Union[str, os.PathLike], config_path: Optional[str] = None) -> Dict[str, Any]:
+def adapt(path: Union[str, os.PathLike, Dict[str, Any]], config_path: Optional[str] = None) -> Dict[str, Any]:
     """
-    Load a Generic JSON trace file and normalize it to the standard schema.
+    Load a Generic JSON trace file or dict and normalize it to the standard schema.
     
     This is the single public entry point for trace normalization.
     
     Args:
-        path: Path to the Generic JSON trace file
+        path: Path to the Generic JSON trace file OR a dict containing trace data
         config_path: Optional path to adapter_config.yaml (defaults to DEFAULT_CONFIG_PATH)
         
     Returns:
@@ -110,7 +115,7 @@ def adapt(path: Union[str, os.PathLike], config_path: Optional[str] = None) -> D
         - adapter_stats contains confidence_penalties
         
     Raises:
-        InputError: If the trace file doesn't exist, contains invalid JSON, or is unreadable
+        InputError: If the trace file doesn't exist, contains invalid JSON, is unreadable, or invalid input type
         ValidationError: If no events exist, schema file can't be loaded, or output validation fails
         AdaptationError: If internal adapter logic encounters an unexpected error
         
@@ -124,9 +129,12 @@ def adapt(path: Union[str, os.PathLike], config_path: Optional[str] = None) -> D
     
     Example:
         >>> from agent_eval.adapters.generic_json import adapt
+        >>> # From file
         >>> result = adapt("trace.json")
         >>> print(result["run_id"])
         'abc-123-def'
+        >>> # From dict (for testing/programmatic use)
+        >>> result = adapt({"events": [...]})
         >>> print(result["turns"][0]["confidence"])
         0.85
     """
@@ -351,7 +359,7 @@ class _ConfidenceScorer:
         # Schema-compliant structure - only allowed fields
         stats = {
             "total_events_processed": total_events,
-            "events_with_valid_timestamps": self.trusted_timestamps,  # Schema name: events_with_valid_timestamps = trusted timestamps
+            "events_with_valid_timestamps": self.trusted_timestamps,  # "valid" here means trusted-and-accepted by adapter policy
             "events_with_missing_data": missing_data,
             "dropped_events_count": dropped_events_count,
             "invalid_events_count": invalid_events_count,
@@ -504,6 +512,51 @@ class _TraceNormalizer:
         if any(normalized.get(field) for field in text_fields):
             self.field_coverage["text_found"] += 1
     
+    def _has_missing_required_fields(self, normalized: Dict[str, Any], kind: Optional[str]) -> bool:
+        """
+        Check if event is missing required fields based on its kind.
+        
+        This is kind-aware: only checks fields that are expected for the given event kind.
+        Reduces false positives where events are marked as "missing data" for fields
+        they shouldn't have (e.g., USER_INPUT doesn't need tool_name).
+        
+        Args:
+            normalized: Normalized event dictionary
+            kind: Event kind (e.g., "USER_INPUT", "TOOL_CALL", etc.)
+            
+        Returns:
+            True if event is missing required fields for its kind, False otherwise
+        """
+        # Define required fields per kind
+        # These are fields that SHOULD be present for each kind
+        required_by_kind = {
+            "USER_INPUT": ["text"],  # User input should have text
+            "TOOL_CALL": ["tool_name"],  # Tool calls should have tool name
+            "TOOL_RESULT": ["tool_run_id"],  # Tool results should have run ID (tool_name propagated later)
+            "LLM_OUTPUT_CHUNK": ["text"],  # LLM output should have text
+            "ASSISTANT_MESSAGE": ["text"],  # Assistant messages should have text
+            "FINAL_RESPONSE": ["text"],  # Final responses should have text
+            "MODEL_INVOKE": [],  # Model invokes may not have specific required fields
+            "EVENT": [],  # Generic events may not have specific required fields
+            "UNKNOWN": [],  # Unknown events - can't determine requirements
+        }
+        
+        # Get required fields for this kind (default to empty if kind not recognized)
+        required_fields = required_by_kind.get(kind, [])
+        
+        # Check if any required field is missing
+        for field in required_fields:
+            if not normalized.get(field):
+                return True
+        
+        # Also check for at least one grouping ID (session_id, trace_id, request_id, turn_id)
+        # This is important for all event kinds
+        grouping_ids = ["session_id", "trace_id", "request_id", "turn_id"]
+        if not any(normalized.get(field) for field in grouping_ids):
+            return True
+        
+        return False
+    
     def _calculate_mapping_coverage(self) -> Dict[str, Any]:
         """
         Calculate mapping coverage breakdown.
@@ -595,38 +648,41 @@ class _TraceNormalizer:
                 result.append(item)
         return result
     
-    def normalize(self, path: Union[str, os.PathLike]) -> Dict[str, Any]:
+    def normalize(self, path: Union[str, os.PathLike, Dict[str, Any]]) -> Dict[str, Any]:
         """
         Transform raw Generic JSON into normalized format.
         
         Args:
-            path: Path to Generic JSON trace file
+            path: Path to Generic JSON trace file OR a dict containing trace data
             
         Returns:
             Normalized dict with run_id, metadata, adapter_stats, turns[]
             
         Raises:
-            InputError: If trace file doesn't exist or JSON is invalid
+            InputError: If trace file doesn't exist, JSON is invalid, or invalid input type
             ValidationError: If no events exist or input is completely unreadable
         """
-        logger.info(f"Starting normalization of trace file: {path}")
+        logger.info(f"Starting normalization of trace: {path if not isinstance(path, dict) else '<in-memory-trace>'}")
         
-        # Load JSON file
+        # Load trace data (from file or dict)
         raw_data = self._load_json(path)
         
         # Extract events from configured paths
         events = self._extract_events(raw_data)
         
+        # Create trace label for logging (avoid dumping large dicts)
+        trace_label = "<in-memory-trace>" if isinstance(path, dict) else str(path)
+        
         # Validate that we have events
         if not events:
-            logger.error(f"No events found in trace file: {path}")
+            logger.error(f"No events found in trace: {trace_label}")
             raise ValidationError(
-                f"No events found in trace file. "
+                f"No events found in trace. "
                 f"Checked event paths: {self.config.get_event_paths()}. "
-                f"Please ensure the trace file contains valid event data."
+                f"Please ensure the trace contains valid event data."
             )
         
-        logger.info(f"Extracted {len(events)} events from trace file")
+        logger.info(f"Extracted {len(events)} events from trace: {trace_label}")
         
         # Extract run-level fields
         run_id = self._extract_run_id(raw_data, events)
@@ -714,7 +770,7 @@ class _TraceNormalizer:
         # Final schema validation
         self._validate_output(normalized)
         
-        logger.info(f"Successfully normalized trace file: {path}")
+        logger.info(f"Successfully normalized trace file: {trace_label}")
         logger.debug(f"Adapter stats: {len(adapter_stats.get('confidence_penalties', []))} confidence penalties applied")
         
         return normalized
@@ -769,19 +825,37 @@ class _TraceNormalizer:
                     except (TypeError, ValueError):
                         self.warnings.append(f"Turn {i}: confidence should be numeric, got {type(conf).__name__}")
     
-    def _load_json(self, path: Union[str, os.PathLike]) -> Dict[str, Any]:
+    def _load_json(self, path: Union[str, os.PathLike, Dict[str, Any]]) -> Dict[str, Any]:
         """
-        Load and parse JSON file.
+        Load and parse JSON file or accept dict directly.
         
         Args:
-            path: Path to JSON file
+            path: Path to JSON file OR a dict containing trace data
             
         Returns:
             Parsed JSON dictionary
             
         Raises:
-            InputError: If file doesn't exist, JSON is invalid, or file is unreadable
+            InputError: If file doesn't exist, JSON is invalid, file is unreadable, or invalid input type
         """
+        # If already a dict, return it directly (for testing and programmatic use)
+        if isinstance(path, dict):
+            if not path:
+                raise InputError(
+                    "Trace data is empty. Please ensure the dict contains valid trace data.",
+                    file_path="<in-memory-trace>"
+                )
+            return path
+        
+        # Reject non-dict, non-path inputs with clear error
+        if not isinstance(path, (str, os.PathLike)):
+            raise InputError(
+                f"Expected a file path (str/PathLike) or trace dict, got {type(path).__name__}. "
+                f"Lists and other types are not supported.",
+                file_path="<in-memory-trace>"
+            )
+        
+        # Otherwise, treat as file path
         path_obj = Path(path)
         path_str = str(path)
         
@@ -889,6 +963,7 @@ class _TraceNormalizer:
         Extract value from nested path with wildcard support.
         
         Handles nested wildcards with proper flattening at every step.
+        Also supports literal dotted keys (e.g., OTEL-style "session.id" as a single key).
         
         Args:
             data: Source data
@@ -897,10 +972,14 @@ class _TraceNormalizer:
         Returns:
             Extracted value or None
         """
+        # Try literal key first for OTEL-style dotted keys (e.g., {"session.id": "abc"})
+        if isinstance(data, dict) and path in data:
+            return data[path]
+        
         parts = path.split('.')
         current = data
         
-        for part in parts:
+        for idx, part in enumerate(parts):
             if current is None:
                 return None
             
@@ -931,12 +1010,25 @@ class _TraceNormalizer:
             else:
                 # Regular key access
                 if isinstance(current, dict):
+                    # Try literal dotted key for remaining path first (e.g., "session.id" in {"session.id": "abc"})
+                    remaining_path = '.'.join(parts[idx:])
+                    if remaining_path in current:
+                        return current[remaining_path]
+                    
+                    # Fall back to regular key access
                     current = current.get(part)
                 elif isinstance(current, list):
                     # Apply key to all items in list
                     results = []
                     for item in current:
                         if isinstance(item, dict):
+                            # Try literal dotted key for remaining path first
+                            remaining_path = '.'.join(parts[idx:])
+                            if remaining_path in item:
+                                results.append(item[remaining_path])
+                                continue
+                            
+                            # Fall back to regular key access
                             value = item.get(part)
                             if value is not None:
                                 results.append(value)
@@ -1253,11 +1345,7 @@ class _TraceNormalizer:
         if event_has_trusted_ts:
             self.scorer.trusted_timestamps += 1
         
-        # FIX Issue #2: Track comprehensive missing data across ALL field groups
-        # Track if ANY important field is missing (not just timestamps)
-        event_missing_data = False
-        
-        # Extract identifiers with canonical source tracking and missing field tracking
+        # Extract identifiers with canonical source tracking
         for field in ["session_id", "trace_id", "span_id", "parent_span_id", "request_id", "turn_id"]:
             value = self.config.get_field_value_with_fallback(event, field)
             if value is not None:
@@ -1270,11 +1358,6 @@ class _TraceNormalizer:
                         if self._extract_from_path(event, alias) is not None:
                             self.canonical_sources[field] = alias
                             break
-            else:
-                # Track missing field with attempted aliases
-                event_missing_data = True
-                if field not in self.missing_fields_attempts:
-                    self.missing_fields_attempts[field] = self.config.get_field_aliases(field)
         
         # Extract event typing fields
         for field in ["event_type", "operation"]:
@@ -1287,10 +1370,6 @@ class _TraceNormalizer:
                         if self._extract_from_path(event, alias) is not None:
                             self.canonical_sources[field] = alias
                             break
-            else:
-                event_missing_data = True
-                if field not in self.missing_fields_attempts:
-                    self.missing_fields_attempts[field] = self.config.get_field_aliases(field)
         
         # Extract tool fields
         for field in ["tool_name", "tool_run_id", "tool_result", "tool_input", "tool_arguments"]:
@@ -1303,10 +1382,6 @@ class _TraceNormalizer:
                         if self._extract_from_path(event, alias) is not None:
                             self.canonical_sources[field] = alias
                             break
-            else:
-                event_missing_data = True
-                if field not in self.missing_fields_attempts:
-                    self.missing_fields_attempts[field] = self.config.get_field_aliases(field)
         
         # Extract model/message fields
         for field in ["role", "span_kind", "model_id", "text"]:
@@ -1319,10 +1394,6 @@ class _TraceNormalizer:
                         if self._extract_from_path(event, alias) is not None:
                             self.canonical_sources[field] = alias
                             break
-            else:
-                event_missing_data = True
-                if field not in self.missing_fields_attempts:
-                    self.missing_fields_attempts[field] = self.config.get_field_aliases(field)
         
         # Extract step fields
         status = self.config.get_field_value_with_fallback(event, "status")
@@ -1334,10 +1405,6 @@ class _TraceNormalizer:
                     if self._extract_from_path(event, alias) is not None:
                         self.canonical_sources["status"] = alias
                         break
-        else:
-            event_missing_data = True
-            if "status" not in self.missing_fields_attempts:
-                self.missing_fields_attempts["status"] = self.config.get_field_aliases("status")
         
         latency = self.config.get_field_value_with_fallback(event, "latency_ms")
         if latency is not None:
@@ -1350,14 +1417,9 @@ class _TraceNormalizer:
                         if self._extract_from_path(event, alias) is not None:
                             self.canonical_sources["latency_ms"] = alias
                             break
-        else:
-            event_missing_data = True
-            if "latency_ms" not in self.missing_fields_attempts:
-                self.missing_fields_attempts["latency_ms"] = self.config.get_field_aliases("latency_ms")
         
         # FIX Issue #2: Increment missing_data_count if this event had ANY missing important fields
-        if event_missing_data:
-            self.missing_data_count += 1
+        # DEFERRED: Kind-aware missing data check happens after classification
         
         # Classify event using normalized dict (not raw event) - FIX #3 and N1
         # Build a dict with normalized fields taking precedence over raw
@@ -1371,6 +1433,10 @@ class _TraceNormalizer:
             normalized["kind_rule_id"] = rule_id
         if kind_reason:
             normalized["kind_reason"] = kind_reason
+        
+        # FIX: Kind-aware missing data check (only check fields relevant to this event kind)
+        if self._has_missing_required_fields(normalized, kind):
+            self.missing_data_count += 1
         
         # FIX Issue #10: Track ALL events by kind, including None/empty/unknown
         kind_key = kind if kind else "UNKNOWN"
@@ -1465,7 +1531,8 @@ class _TraceNormalizer:
         Segment events by explicit turn_id fields.
         
         Looks for turn_id or request_id fields in events and groups by those values.
-        Fails if "unknown" group exceeds 50% of events (indicates poor segmentation quality).
+        Events without turn_id are excluded from segmentation (noise events).
+        Fails if more than 50% of events lack turn_id (indicates poor segmentation quality).
         
         Args:
             events: Normalized events
@@ -1489,7 +1556,9 @@ class _TraceNormalizer:
             return None
         
         # Group events by turn_id (try each field in order)
+        # FIX: Only include events WITH explicit turn_id to prevent over-splitting
         turn_groups: Dict[str, List[Dict[str, Any]]] = {}
+        events_without_turn_id = 0
         
         for event in events:
             # Find first available turn_id field
@@ -1499,9 +1568,11 @@ class _TraceNormalizer:
                 if turn_id:
                     break
             
-            # If no turn_id found, assign to "unknown" group
+            # FIX: Skip events without turn_id instead of creating "unknown" group
+            # This prevents noise events (internal.metric, debug.log) from creating extra turns
             if not turn_id:
-                turn_id = "unknown"
+                events_without_turn_id += 1
+                continue  # Skip this event - don't add to any turn group
             
             turn_id = str(turn_id)
             
@@ -1510,11 +1581,14 @@ class _TraceNormalizer:
             
             turn_groups[turn_id].append(event)
         
-        # Check quality: fail if "unknown" group exceeds 50% of events
-        unknown_count = len(turn_groups.get("unknown", []))
-        unknown_ratio = unknown_count / max(1, len(events))
+        # Check quality: fail if too many events lack turn_id (indicates poor segmentation quality)
+        # Changed from checking "unknown" group to checking skipped events
+        events_with_turn_id = len(events) - events_without_turn_id
+        if events_with_turn_id == 0:
+            return None  # No events with turn_id
         
-        if unknown_ratio > 0.5:
+        skip_ratio = events_without_turn_id / max(1, len(events))
+        if skip_ratio > 0.5:
             return None  # Strategy failed - too many events without turn_id
         
         # Convert to list of lists, sorted by earliest event timestamp (not lexicographic)
@@ -1879,23 +1953,17 @@ class _TraceNormalizer:
         # CRITICAL CONTRACT (Option A): Only use top-level extraction for SINGLE_TURN strategy
         # For multi-turn traces, derive all fields from events to avoid smearing root values across turns
         
-        # Track field sources for debugging
-        fields_source = {}
-        
         # Extract user_query
         user_query = None
         if strategy_used == "SINGLE_TURN":
             # Single-turn: allow top-level dotpath extraction (precedence over events)
             user_query = self._extract_top_level_field(raw_data, "user_query")
-            if user_query:
-                fields_source["user_query"] = "top_level"
         
         # Fallback to first USER_INPUT.text in this turn (always, for both single and multi-turn)
         if not user_query:
             for evt in events:
                 if evt.get("kind") == "USER_INPUT" and evt.get("text"):
                     user_query = evt.get("text")
-                    fields_source["user_query"] = "events"
                     break
         
         # Extract final_answer
@@ -1903,29 +1971,16 @@ class _TraceNormalizer:
         if strategy_used == "SINGLE_TURN":
             # Single-turn: allow top-level dotpath extraction (precedence over events)
             final_answer = self._extract_top_level_field(raw_data, "final_answer")
-            if final_answer:
-                fields_source["final_answer"] = "top_level"
         
         # Fallback to LLM output streaming (always, for both single and multi-turn)
         if not final_answer:
             final_answer = self._join_llm_output_stream(events)
-            if final_answer:
-                fields_source["final_answer"] = "events"
         
         # Extract finish_reason
         finish_reason = None
         if strategy_used == "SINGLE_TURN":
             # Single-turn: allow top-level dotpath extraction
             finish_reason = self._extract_top_level_field(raw_data, "finish_reason")
-            if finish_reason:
-                fields_source["finish_reason"] = "top_level"
-            else:
-                # Explicitly track missing finish_reason for SINGLE_TURN too
-                fields_source["finish_reason"] = "none"
-        else:
-            # Multi-turn: finish_reason stays None unless we can derive from events
-            # (currently no event-based derivation implemented - leave as None)
-            fields_source["finish_reason"] = "none"
         
         # Check for LLM output (stricter heuristic)
         has_llm_output = bool(final_answer) or any(
@@ -1941,11 +1996,11 @@ class _TraceNormalizer:
         # Stage C: Derive - Link tool calls with results and handle orphans
         events = self._link_tool_calls_and_results(events, turn_id)
         
+        # Stage C: Derive - Enrich tool call status from linked results
+        events = self._enrich_tool_call_status(events)
+        
         # Stage C: Derive - Classify events into phases
         events = self._classify_phases(events)
-        
-        # Stage C: Derive - Detect attribution (tool usage, tool output, stitched traces)
-        attribution = self._detect_attribution(events, turn_id)
         
         # Convert events to steps
         steps = []
@@ -2076,6 +2131,10 @@ class _TraceNormalizer:
     def _detect_attribution(self, events: List[Dict[str, Any]], turn_id: str) -> Dict[str, Any]:
         """
         Detect attribution: tool usage, tool output, and stitched trace suspects.
+        
+        **NOTE: This method is currently unused and reserved for future implementation.**
+        Attribution detection was planned but not yet integrated into the output schema.
+        The method remains for potential future use in enhanced trace analysis.
         
         Stage C: Derive implementation with:
         - Tool usage detection: tool_used_if_has_kind=TOOL_CALL
@@ -2278,6 +2337,150 @@ class _TraceNormalizer:
         
         # Return events with linking metadata added (order preserved)
         return events
+    def _infer_status_from_result(self, result: Dict[str, Any]) -> str:
+        """
+        Infer execution status from a tool result event.
+
+        Checks for error signals in strict precedence order to determine
+        if a tool execution succeeded or failed.
+
+        Args:
+            result: Tool result event dictionary
+
+        Returns:
+            Inferred status: "error" if error signals detected, "success" otherwise
+        """
+        # Check 1: Explicit status field with error values
+        status = result.get("status")
+        if status:
+            status_str = str(status).lower()
+            if status_str in ["error", "failed", "failure", "exception", "timeout"]:
+                return "error"
+
+        # Check 2: Error field exists and is non-empty
+        error_field = result.get("error")
+        if error_field:
+            # Check if it's a non-empty string or non-empty dict/list
+            if isinstance(error_field, str) and error_field.strip():
+                return "error"
+            elif isinstance(error_field, (dict, list)) and error_field:
+                return "error"
+
+        # Check 3: attributes.error exists and is non-empty
+        attributes = result.get("attributes", {})
+        if isinstance(attributes, dict):
+            attr_error = attributes.get("error")
+            if attr_error:
+                if isinstance(attr_error, str) and attr_error.strip():
+                    return "error"
+                elif isinstance(attr_error, (dict, list)) and attr_error:
+                    return "error"
+
+        # Check 4: raw contains error-shaped fields
+        raw = result.get("raw", {})
+        if isinstance(raw, dict):
+            # Check for common error field names
+            error_keys = ["error", "exception", "failure", "error_message", "error_code"]
+            for key in error_keys:
+                if key in raw and raw[key]:
+                    # Non-empty value indicates error
+                    if isinstance(raw[key], str) and raw[key].strip():
+                        return "error"
+                    elif isinstance(raw[key], (dict, list)) and raw[key]:
+                        return "error"
+
+        # Check 5: Cautious text heuristics (last resort)
+        # Only apply to text field with anchored patterns to avoid false positives
+        text = result.get("text", "")
+        if isinstance(text, str) and text:
+            # Anchored patterns to avoid false positives like "No error found"
+            error_patterns = [
+                r'\berror\b.*\boccurred\b',  # "error occurred"
+                r'\bfailed\b.*\bto\b',        # "failed to"
+                r'\bexception\b.*\braised\b', # "exception raised"
+                r'\btimeout\b.*\bexceeded\b', # "timeout exceeded"
+            ]
+
+            for pattern in error_patterns:
+                if re.search(pattern, text, re.IGNORECASE):
+                    return "error"
+
+        # No error signals detected - assume success
+        return "success"
+
+    def _enrich_tool_call_status(self, events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Enrich tool call events with inferred status from linked results.
+
+        This implements the status enrichment phase that infers execution outcomes
+        from linked tool results. It follows precedence rules:
+        - Explicit status (not null, not "unknown") → preserved
+        - Linked result exists → infer from result
+        - No linked result → remains "unknown"
+
+        ENHANCEMENTS (Gap fixes):
+        - Gap 1: Supports both TOOL_RUN_ID and SPAN_PARENT_CHILD linking strategies
+          by using _linked_to_call_idx metadata written by the linker
+        - Gap 2: Case-insensitive "unknown" check (handles UNKNOWN, Unknown, etc.)
+        - Gap 5: Deterministic preference for multiple results (first result, or error if present)
+
+        Args:
+            events: List of events with tool linking metadata from _link_tool_calls_and_results()
+
+        Returns:
+            Same list of events with enriched status fields (modified in-place)
+        """
+        # Build bidirectional index using _linked_to_call_idx metadata (Gap 1 fix)
+        # This supports both TOOL_RUN_ID and SPAN_PARENT_CHILD linking strategies
+        # because the linker already resolved the relationship and wrote _linked_to_call_idx
+        call_to_result = {}  # call_idx -> result_event
+        
+        for idx, event in enumerate(events):
+            if event.get("kind") == "TOOL_RESULT":
+                # Use the _linked_to_call_idx metadata written by the linker
+                call_idx = event.get("_linked_to_call_idx")
+                if call_idx is None:
+                    continue
+                
+                # Gap 5 fix: Deterministic preference for multiple results
+                if call_idx not in call_to_result:
+                    # First result for this call
+                    call_to_result[call_idx] = event
+                else:
+                    # Multiple results - prefer error over success
+                    existing = call_to_result[call_idx]
+                    new_status = self._infer_status_from_result(event)
+                    existing_status = self._infer_status_from_result(existing)
+                    if new_status == "error" and existing_status != "error":
+                        call_to_result[call_idx] = event
+        
+        # Enrich tool call events using the link index
+        for idx, event in enumerate(events):
+            if event.get("kind") == "TOOL_CALL":
+                # Check if this tool call needs status enrichment
+                current_status = event.get("status")
+
+                # Gap 2 fix: Case-insensitive "unknown" check
+                # Only enrich if status is missing or "unknown" (any case)
+                if current_status and str(current_status).strip().lower() != "unknown":
+                    continue
+
+                # Find linked result using the index (supports all linking strategies)
+                linked_result = call_to_result.get(idx)
+                if not linked_result:
+                    continue
+
+                # Infer status from linked result
+                inferred_status = self._infer_status_from_result(linked_result)
+
+                # Update event with inferred status
+                event["status"] = inferred_status
+
+                # Add debug metadata
+                event["_tool_outcome_inferred"] = True
+
+        return events
+
     
     def _deduplicate_tool_calls_inplace(
         self,
@@ -2413,7 +2616,13 @@ class _TraceNormalizer:
                 linked.add(result_idx)
                 # Add linking metadata
                 result["_linked_by"] = "TOOL_RUN_ID"
-                result["_linked_to_call_idx"] = call_map[str(tool_run_id)]
+                call_idx = call_map[str(tool_run_id)]
+                result["_linked_to_call_idx"] = call_idx
+                
+                # FIX: Propagate tool_name from call to result if result is missing it
+                call = events[call_idx]
+                if not result.get("tool_name") and call.get("tool_name"):
+                    result["tool_name"] = call.get("tool_name")
         
         return linked
     
@@ -2452,7 +2661,13 @@ class _TraceNormalizer:
                 linked.add(result_idx)
                 # Add linking metadata
                 result["_linked_by"] = "SPAN_PARENT_CHILD"
-                result["_linked_to_call_idx"] = call_map[str(parent_span_id)]
+                call_idx = call_map[str(parent_span_id)]
+                result["_linked_to_call_idx"] = call_idx
+                
+                # FIX: Propagate tool_name from call to result if result is missing it
+                call = events[call_idx]
+                if not result.get("tool_name") and call.get("tool_name"):
+                    result["tool_name"] = call.get("tool_name")
         
         return linked
     
@@ -2517,7 +2732,7 @@ class _TraceNormalizer:
         output_config = self.config.get_output_extraction_config()
         stream_config = output_config.get("assistant_output_stream", {})
         
-        include_kinds = stream_config.get("include_kinds", ["LLM_OUTPUT_CHUNK"])
+        include_kinds = stream_config.get("include_kinds", ["LLM_OUTPUT_CHUNK", "ASSISTANT_MESSAGE", "FINAL_RESPONSE"])
         exclude_patterns = stream_config.get("exclude_if_text_matches_regex", [])
         join_with = stream_config.get("join_with", "")  # FIX: Read from stream_config, not parent
         max_chars = output_config.get("max_chars", 200000)
@@ -2683,6 +2898,7 @@ class _TraceNormalizer:
             "latency_ms": event.get("latency_ms"),
             "span_id": event.get("span_id"),
             "parent_span_id": event.get("parent_span_id"),
+            "tool_name": event.get("tool_name"),  # Preserve tool_name for validation
             "tool_run_id": event.get("tool_run_id"),
             "event_order": event.get("event_order"),
             "source_index": event.get("source_index"),
@@ -2714,7 +2930,7 @@ class _TraceNormalizer:
         )
         end_kinds = latency_config.get("normalized_latency_ms", {}).get(
             "end_at_last_kind_in",
-            ["LLM_OUTPUT_CHUNK", "TOOL_RESULT", "EVENT"]
+            ["LLM_OUTPUT_CHUNK", "ASSISTANT_MESSAGE", "FINAL_RESPONSE", "TOOL_RESULT", "EVENT"]
         )
         
         # Find first event with start kind and trusted timestamp

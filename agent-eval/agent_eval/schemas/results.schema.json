@@ -95,6 +95,13 @@
         }
       }
     },
+    "artifact_hashes": {
+      "type": "object",
+      "description": "SHA-256 hashes of output artifacts for integrity verification",
+      "additionalProperties": {
+        "type": ["string", "null"]
+      }
+    },
     "execution_stats": {
       "type": "object",
       "description": "Execution statistics",

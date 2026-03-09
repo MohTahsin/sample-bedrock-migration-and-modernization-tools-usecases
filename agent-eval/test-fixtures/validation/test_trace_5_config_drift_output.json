@@ -1,0 +1,127 @@
+{
+  "run_id": "config_drift_test",
+  "metadata": {
+    "segmentation_strategy_used": "SINGLE_TURN",
+    "run_confidence": 0.0,
+    "mapping_coverage": {
+      "ids_coverage": 0.0,
+      "time_coverage": 0.0,
+      "tool_coverage": 0.0,
+      "text_coverage": 1.0,
+      "overall_mapping_coverage": 0.25
+    },
+    "adapter_version": "1.0.0",
+    "processed_at": "2026-03-09T17:01:59.248835+00:00"
+  },
+  "adapter_stats": {
+    "total_events_processed": 2,
+    "events_with_valid_timestamps": 0,
+    "events_with_missing_data": 2,
+    "dropped_events_count": 0,
+    "invalid_events_count": 0,
+    "turn_count": 1,
+    "mapping_coverage": 0.25,
+    "orphan_tool_results": [],
+    "segmentation_strategy": "SINGLE_TURN",
+    "confidence_penalties": [
+      {
+        "reason": "single_turn_fallback",
+        "penalty": 0.25,
+        "location": "segmentation"
+      },
+      {
+        "reason": "missing_timestamp",
+        "penalty": 0.4,
+        "location": "turn_0.timestamps"
+      },
+      {
+        "reason": "missing_grouping_ids",
+        "penalty": 0.3,
+        "location": "turn_0.identifiers"
+      },
+      {
+        "reason": "no_anchor_found",
+        "penalty": 0.3,
+        "location": "turn_0.anchors"
+      },
+      {
+        "reason": "no_llm_output",
+        "penalty": 0.2,
+        "location": "turn_0.output"
+      }
+    ],
+    "events_by_kind": {
+      "EVENT": 2
+    },
+    "raw_path": "events",
+    "canonical_sources": {
+      "text": "message"
+    },
+    "segmentation_strategy_reason": "No segmentation identifiers found - treating as single turn"
+  },
+  "turns": [
+    {
+      "turn_id": "turn_0",
+      "request_id": null,
+      "timestamp": null,
+      "user_query": null,
+      "final_answer": null,
+      "steps": [
+        {
+          "name": "unknown",
+          "status": "unknown",
+          "type": null,
+          "kind": "EVENT",
+          "start_ts": null,
+          "end_ts": null,
+          "latency_ms": null,
+          "span_id": null,
+          "parent_span_id": null,
+          "tool_name": null,
+          "tool_run_id": null,
+          "event_order": 0,
+          "source_index": 0,
+          "attributes": {
+            "_kind_reason": "No classification rule matched; using default kind"
+          },
+          "raw": {
+            "event_time": "2026-03-01T14:00:00Z",
+            "operation": "user_message",
+            "message": "Do you support refunds?",
+            "session": "sess_drift",
+            "turn": "t1"
+          }
+        },
+        {
+          "name": "unknown",
+          "status": "unknown",
+          "type": null,
+          "kind": "EVENT",
+          "start_ts": null,
+          "end_ts": null,
+          "latency_ms": null,
+          "span_id": null,
+          "parent_span_id": null,
+          "tool_name": null,
+          "tool_run_id": null,
+          "event_order": 1,
+          "source_index": 1,
+          "attributes": {
+            "_kind_reason": "No classification rule matched; using default kind"
+          },
+          "raw": {
+            "event_time": "2026-03-01T14:00:01Z",
+            "operation": "assistant_message",
+            "message": "Yes, refunds are supported within 30 days.",
+            "session": "sess_drift",
+            "turn": "t1"
+          }
+        }
+      ],
+      "normalized_latency_ms": null,
+      "runtime_reported_latency_ms": null,
+      "total_latency_ms": null,
+      "confidence": 0.0
+    }
+  ]
+}

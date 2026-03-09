@@ -1,0 +1,19 @@
+{
+  "run_id": "determinism_test_001",
+  "events": [
+    {
+      "timestamp": "2026-03-01T11:00:00Z",
+      "event_type": "user_message",
+      "text": "Hello",
+      "session_id": "sess_det",
+      "turn_id": "t1"
+    },
+    {
+      "timestamp": "2026-03-01T11:00:01Z",
+      "event_type": "assistant_message",
+      "text": "Hi there! How can I help?",
+      "session_id": "sess_det",
+      "turn_id": "t1"
+    }
+  ]
+}

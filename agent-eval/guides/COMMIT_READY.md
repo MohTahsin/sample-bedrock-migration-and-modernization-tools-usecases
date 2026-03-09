@@ -1,8 +1,10 @@
 # Commit Ready Summary
 
-## Status: ✅ READY TO COMMIT
+## Status: ✅ READY TO COMMIT (Updated: README improvements)
 
 All work completed and validated. The agent evaluation framework is ready to be committed to the `agent-evaluation` branch.
+
+**Latest Change:** README clarity improvements (opening line, metrics details, Core Idea flow, architecture diagram)
 
 ## What Was Completed
 

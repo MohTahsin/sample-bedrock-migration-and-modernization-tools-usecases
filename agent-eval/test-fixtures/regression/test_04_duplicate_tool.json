@@ -1,0 +1,51 @@
+{
+  "run_id": "regression-duplicate-tool-001",
+  "session_id": "sess-regression-004",
+  "events": [
+    {
+      "timestamp": "2024-01-15T10:00:00Z",
+      "event_type": "user_input",
+      "text": "Search for weather",
+      "trace_id": "trace-004",
+      "request_id": "req-004",
+      "turn_id": "turn-1"
+    },
+    {
+      "timestamp": "2024-01-15T10:00:01Z",
+      "event_type": "tool_call",
+      "tool_name": "search",
+      "tool_run_id": "t1",
+      "tool_input": "{\"query\": \"weather\"}",
+      "trace_id": "trace-004",
+      "request_id": "req-004",
+      "turn_id": "turn-1"
+    },
+    {
+      "timestamp": "2024-01-15T10:00:01Z",
+      "event_type": "tool_call",
+      "tool_name": "search",
+      "tool_run_id": "t1",
+      "tool_input": "{\"query\": \"weather\"}",
+      "trace_id": "trace-004",
+      "request_id": "req-004",
+      "turn_id": "turn-1"
+    },
+    {
+      "timestamp": "2024-01-15T10:00:02Z",
+      "event_type": "tool_result",
+      "tool_run_id": "t1",
+      "tool_result": "{\"temperature\": 72}",
+      "trace_id": "trace-004",
+      "request_id": "req-004",
+      "turn_id": "turn-1"
+    },
+    {
+      "timestamp": "2024-01-15T10:00:03Z",
+      "event_type": "llm_output",
+      "text": "The temperature is 72 degrees.",
+      "trace_id": "trace-004",
+      "request_id": "req-004",
+      "turn_id": "turn-1"
+    }
+  ]
+}

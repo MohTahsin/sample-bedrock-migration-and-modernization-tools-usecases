@@ -1,0 +1,29 @@
+{
+  "events": [
+    {
+      "event_type": "USER_INPUT",
+      "timestamp": "2024-03-09T10:00:00Z",
+      "session_id": "session-013",
+      "trace_id": "trace-013",
+      "turn_id": "1",
+      "content": "Hello"
+    },
+    {
+      "event_type": "TOOL_RESULT",
+      "timestamp": "2024-03-09T10:00:01Z",
+      "session_id": "session-013",
+      "trace_id": "trace-013",
+      "turn_id": "1",
+      "tool_run_id": "nonexistent-call-999",
+      "result": {"data": "orphaned result"}
+    },
+    {
+      "event_type": "ASSISTANT_OUTPUT",
+      "timestamp": "2024-03-09T10:00:02Z",
+      "session_id": "session-013",
+      "trace_id": "trace-013",
+      "turn_id": "1",
+      "content": "Hi there"
+    }
+  ]
+}

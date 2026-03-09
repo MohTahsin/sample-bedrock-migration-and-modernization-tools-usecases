@@ -31,7 +31,7 @@
         },
         "segmentation_strategy_used": {
           "type": "string",
-          "description": "Strategy used for turn segmentation (TURN_ID, SESSION_PLUS_REQUEST, etc.)"
+          "description": "Strategy used for turn segmentation (TURN_ID, SESSION_PLUS_REQUEST, SESSION_PLUS_TRACE_THEN_ANCHOR_SPLIT, SINGLE_TURN)"
         },
         "run_confidence": {
           "type": "number",
@@ -88,7 +88,7 @@
         "events_with_valid_timestamps": {
           "type": "integer",
           "minimum": 0,
-          "description": "Number of events with valid, trusted timestamps"
+          "description": "Number of events with parseable timestamps that passed trust validation (ts_trusted=true)"
         },
         "events_with_missing_data": {
           "type": "integer",
@@ -176,7 +176,7 @@
         },
         "segmentation_strategy": {
           "type": "string",
-          "description": "Strategy used for turn segmentation (TURN_ID, SESSION_PLUS_REQUEST, SINGLE_TURN_FALLBACK, etc.)"
+          "description": "Strategy used for turn segmentation (TURN_ID, SESSION_PLUS_REQUEST, SESSION_PLUS_TRACE_THEN_ANCHOR_SPLIT, SINGLE_TURN)"
         },
         "mapping_coverage": {
           "type": "number",
@@ -293,6 +293,10 @@
                 "tool_run_id": {
                   "type": ["string", "null"],
                   "description": "Tool execution identifier for linking tool calls with results"
+                },
+                "tool_name": {
+                  "type": ["string", "null"],
+                  "description": "Tool name for TOOL_CALL and TOOL_RESULT steps"
                 },
                 "event_order": {
                   "type": ["integer", "null"],

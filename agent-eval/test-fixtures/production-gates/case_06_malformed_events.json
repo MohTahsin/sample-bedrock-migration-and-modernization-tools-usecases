@@ -1,0 +1,29 @@
+{
+  "events": [
+    {
+      "event_type": "USER_INPUT",
+      "timestamp": "2024-03-09T10:00:00Z",
+      "session_id": "session-006",
+      "trace_id": "trace-006",
+      "turn_id": "1",
+      "content": "Valid event 1"
+    },
+    "string-not-dict",
+    42,
+    null,
+    {
+      "nested": {
+        "junk": "data"
+      }
+    },
+    [1, 2, 3],
+    {
+      "event_type": "ASSISTANT_OUTPUT",
+      "timestamp": "2024-03-09T10:00:01Z",
+      "session_id": "session-006",
+      "trace_id": "trace-006",
+      "turn_id": "1",
+      "content": "Valid event 2"
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "events": [
+    {
+      "event_type": "USER_INPUT",
+      "timestamp": "2024-03-09T10:00:00Z",
+      "session_id": "session-002",
+      "trace_id": "trace-002",
+      "turn_id": "1",
+      "content": "Hello"
+    },
+    {
+      "event_type": "ASSISTANT_OUTPUT",
+      "timestamp": "2024-03-09T10:00:01Z",
+      "session_id": "session-002",
+      "trace_id": "trace-002",
+      "turn_id": "1",
+      "content": "Hi there!"
+    },
+    {
+      "event_type": "USER_INPUT",
+      "timestamp": "2024-03-09T10:00:10Z",
+      "session_id": "session-002",
+      "trace_id": "trace-002",
+      "turn_id": "2",
+      "content": "What's the weather?"
+    },
+    {
+      "event_type": "ASSISTANT_OUTPUT",
+      "timestamp": "2024-03-09T10:00:11Z",
+      "session_id": "session-002",
+      "trace_id": "trace-002",
+      "turn_id": "2",
+      "content": "It's sunny today."
+    },
+    {
+      "event_type": "USER_INPUT",
+      "timestamp": "2024-03-09T10:00:20Z",
+      "session_id": "session-002",
+      "trace_id": "trace-002",
+      "turn_id": "3",
+      "content": "Thanks!"
+    },
+    {
+      "event_type": "ASSISTANT_OUTPUT",
+      "timestamp": "2024-03-09T10:00:21Z",
+      "session_id": "session-002",
+      "trace_id": "trace-002",
+      "turn_id": "3",
+      "content": "You're welcome!"
+    }
+  ]
+}

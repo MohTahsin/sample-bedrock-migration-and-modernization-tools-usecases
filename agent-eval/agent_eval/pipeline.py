@@ -236,7 +236,7 @@ def run_pipeline(
             evaluator_input = str(normalized_path)
         
         # Step 3: Run TraceEvaluator in normalized-only mode
-        # Pipeline owns adaptation - runner must be explicitly told input is normalized
+        # Pipeline owns adaptation - runner only accepts normalized input
         if verbose:
             print(f"\nStep 3: Running TraceEvaluator (normalized-only mode)")
         
@@ -245,7 +245,6 @@ def run_pipeline(
             judge_config_path=judge_config_path,
             output_dir=output_dir,
             rubrics_path=rubrics_path,
-            input_is_normalized=True,  # Pipeline owns adaptation
             verbose=verbose,
             debug=debug
         )

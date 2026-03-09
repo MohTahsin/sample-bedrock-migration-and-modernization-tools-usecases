@@ -37,6 +37,7 @@ class MetricsResult:
     # Latency metrics (None if insufficient trusted timestamps)
     latency_p50: Optional[float]
     latency_p95: Optional[float]
+    avg_turn_latency_ms: Optional[float]
     
     # Confidence penalty summary
     confidence_penalty_summary: Dict[str, int]
@@ -103,6 +104,7 @@ class DeterministicMetrics:
         latency_p50, latency_p95, trusted_count, untrusted_count = (
             self._compute_latency_percentiles(turns)
         )
+        avg_turn_latency_ms = self._compute_avg_turn_latency(turns)
         
         # Confidence penalty summary
         confidence_penalty_summary = self._compute_confidence_penalty_summary(
@@ -121,6 +123,7 @@ class DeterministicMetrics:
             single_turn_fallback_used=single_turn_fallback_used,
             latency_p50=latency_p50,
             latency_p95=latency_p95,
+            avg_turn_latency_ms=avg_turn_latency_ms,
             confidence_penalty_summary=confidence_penalty_summary,
             trusted_timestamp_count=trusted_count,
             untrusted_timestamp_count=untrusted_count
@@ -387,6 +390,30 @@ class DeterministicMetrics:
         index = rank - 1
         
         return sorted_values[index]
+    
+    def _compute_avg_turn_latency(self, turns: List[Dict[str, Any]]) -> Optional[float]:
+        """
+        Compute average turn latency from total_latency_ms field.
+        
+        Args:
+            turns: List of turn dictionaries
+            
+        Returns:
+            Average latency in milliseconds, or None if no valid latencies
+        """
+        if not turns:
+            return None
+        
+        valid_latencies = []
+        for turn in turns:
+            latency = turn.get("total_latency_ms")
+            if latency is not None and isinstance(latency, (int, float)) and latency >= 0:
+                valid_latencies.append(float(latency))
+        
+        if not valid_latencies:
+            return None
+        
+        return sum(valid_latencies) / len(valid_latencies)
     
     def _compute_confidence_penalty_summary(
         self,

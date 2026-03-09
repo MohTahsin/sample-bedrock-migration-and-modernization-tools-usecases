@@ -1,0 +1,18 @@
+{
+  "session_id": "sess-partial-001",
+  "trace_id": "trace-partial-001",
+  "events": [
+    {
+      "timestamp": "2026-03-09T10:06:00Z",
+      "type": "user_message",
+      "turn_id": "turn-1",
+      "content": "Explain photosynthesis briefly for a 10-year-old."
+    },
+    {
+      "timestamp": "2026-03-09T10:06:01.800Z",
+      "type": "model_output",
+      "turn_id": "turn-1",
+      "content": "Plants use sunlight to make food."
+    }
+  ]
+}

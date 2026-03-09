@@ -1,0 +1,33 @@
+{
+  "session_id": "sess-bad-002",
+  "trace_id": "trace-bad-002",
+  "events": [
+    {
+      "timestamp": "2026-03-09T10:04:00Z",
+      "type": "user_message",
+      "turn_id": "turn-1",
+      "content": "What is the weather in Austin?"
+    },
+    {
+      "timestamp": "2026-03-09T10:04:01Z",
+      "type": "tool_call",
+      "turn_id": "turn-1",
+      "tool_name": "weather_api",
+      "tool_run_id": "tool-003",
+      "tool_arguments": "{\"city\":\"Austin\"}"
+    },
+    {
+      "timestamp": "2026-03-09T10:04:04.500Z",
+      "type": "tool_result",
+      "turn_id": "turn-1",
+      "tool_run_id": "tool-003",
+      "tool_result": "{\"temp_f\":84,\"condition\":\"Sunny\"}"
+    },
+    {
+      "timestamp": "2026-03-09T10:04:07.800Z",
+      "type": "model_output",
+      "turn_id": "turn-1",
+      "content": "It is snowing in Austin."
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "run_id": "config_drift_test",
+  "events": [
+    {
+      "event_time": "2026-03-01T14:00:00Z",
+      "operation": "user_message",
+      "message": "Do you support refunds?",
+      "session": "sess_drift",
+      "turn": "t1"
+    },
+    {
+      "event_time": "2026-03-01T14:00:01Z",
+      "operation": "assistant_message",
+      "message": "Yes, refunds are supported within 30 days.",
+      "session": "sess_drift",
+      "turn": "t1"
+    }
+  ]
+}

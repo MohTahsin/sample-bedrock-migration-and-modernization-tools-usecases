@@ -1,0 +1,18 @@
+{
+  "session_id": "sess-partial-002",
+  "trace_id": "trace-partial-002",
+  "events": [
+    {
+      "timestamp": "2026-03-09T10:07:00Z",
+      "type": "user_message",
+      "turn_id": "turn-1",
+      "content": "What time does the downtown library close today?"
+    },
+    {
+      "timestamp": "2026-03-09T10:07:02.300Z",
+      "type": "model_output",
+      "turn_id": "turn-1",
+      "content": "I think it may close around 5 PM, but you may want to verify."
+    }
+  ]
+}

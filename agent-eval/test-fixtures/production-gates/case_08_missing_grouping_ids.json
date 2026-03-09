@@ -1,0 +1,14 @@
+{
+  "events": [
+    {
+      "event_type": "USER_INPUT",
+      "timestamp": "2024-03-09T10:00:00Z",
+      "content": "No session or trace IDs"
+    },
+    {
+      "event_type": "ASSISTANT_OUTPUT",
+      "timestamp": "2024-03-09T10:00:01Z",
+      "content": "Still no IDs"
+    }
+  ]
+}

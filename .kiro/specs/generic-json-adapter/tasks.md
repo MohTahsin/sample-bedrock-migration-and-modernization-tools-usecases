@@ -37,7 +37,7 @@ The adapter uses a production-ready configuration file (`adapter_config.yaml` v6
   - Emit warnings for unknown config keys (config drift detection)
   - _Requirements: 2.2, 2.3_
 
-- [ ] 4. Set up testing infrastructure
+- [x] 4. Set up testing infrastructure
   - Create `agent_eval/tests/` directory structure
   - Add `__init__.py` files for test modules
   - Configure pytest in `pyproject.toml`
@@ -62,7 +62,7 @@ The adapter uses a production-ready configuration file (`adapter_config.yaml` v6
     - Emit warnings for unknown config keys (config drift detection)
     - _Requirements: 2.2, 2.3_
   
-  - [ ]* 5.2 Write unit tests for config loader
+  - [x]* 5.2 Write unit tests for config loader
     - Test YAML loading with valid config
     - Test Pydantic validation with invalid config
     - Test regex compilation and caching
@@ -86,7 +86,7 @@ The adapter uses a production-ready configuration file (`adapter_config.yaml` v6
     - Handle schema loading errors gracefully
     - _Requirements: 6.1, 6.2_
   
-  - [ ]* 6.2 Write unit tests for validation utility
+  - [x]* 6.2 Write unit tests for validation utility
     - Test schema loading with valid and invalid paths
     - Test validation with compliant and non-compliant data
     - Test parse_timestamp with various formats (ISO 8601, epoch ms/s/ns, UnixNano)
@@ -161,8 +161,8 @@ The adapter uses a production-ready configuration file (`adapter_config.yaml` v6
     - Add source_index (original position) for events with invalid timestamps
     - _Requirements: 2.8_
 
-- [ ] 9. Implement Generic JSON adapter - Stage A: Classify
-  - [ ] 9.1 Implement event classification engine
+- [x] 9. Implement Generic JSON adapter - Stage A: Classify
+  - [x] 9.1 Implement event classification engine
     - Apply classification rules with first_match_wins policy
     - Support condition types: field equals, field regex, field exists
     - Support condition combinators: all, any
@@ -172,7 +172,7 @@ The adapter uses a production-ready configuration file (`adapter_config.yaml` v6
     - Emit kind_reason (why classified as this kind) on each canonical event
     - _Requirements: 2.3_
   
-  - [ ] 9.2 Implement classification rules from config
+  - [x] 9.2 Implement classification rules from config
     - Rule: user_input_by_type_or_role (event_type or role regex)
     - Rule: model_invoke_by_type_or_span_kind_or_model (event_type, span_kind, or model_id exists)
     - Rule: llm_output_chunk_by_type_or_role (event_type or role regex)
@@ -182,25 +182,25 @@ The adapter uses a production-ready configuration file (`adapter_config.yaml` v6
     - Store rule_id and matching condition in event metadata
     - _Requirements: 2.3_
 
-- [ ] 10. Implement Generic JSON adapter - Stage B: Segment
-  - [ ] 10.1 Implement segmentation strategy selection
+- [x] 10. Implement Generic JSON adapter - Stage B: Segment
+  - [x] 10.1 Implement segmentation strategy selection
     - Try strategies in preference order: TURN_ID, SESSION_PLUS_REQUEST, SESSION_PLUS_TRACE_THEN_ANCHOR_SPLIT, SINGLE_TURN
     - Select first successful strategy
     - Emit segmentation_strategy_used in both metadata and adapter_stats
     - Add turn_confidence_penalty when SINGLE_TURN fallback is used (indicates low segmentation confidence)
     - _Requirements: 2.12_
   
-  - [ ] 10.2 Implement TURN_ID strategy
+  - [x] 10.2 Implement TURN_ID strategy
     - Look for explicit turn_id fields (turn_id, request_id)
     - Group events by turn_id
     - _Requirements: 2.12_
   
-  - [ ] 10.3 Implement SESSION_PLUS_REQUEST strategy
+  - [x] 10.3 Implement SESSION_PLUS_REQUEST strategy
     - Detect session_id + request_id combinations
     - Group events by session + request
     - _Requirements: 2.12_
   
-  - [ ] 10.4 Implement SESSION_PLUS_TRACE_THEN_ANCHOR_SPLIT strategy
+  - [x] 10.4 Implement SESSION_PLUS_TRACE_THEN_ANCHOR_SPLIT strategy
     - Group by session_id or trace_id
     - Split within groups using anchor events (USER_INPUT, MODEL_INVOKE)
     - Apply request_id_diagnosis for stitched trace detection
@@ -209,20 +209,20 @@ The adapter uses a production-ready configuration file (`adapter_config.yaml` v6
     - Sample window_events (5000) for diagnosis
     - _Requirements: 2.12_
   
-  - [ ] 10.5 Implement SINGLE_TURN fallback strategy
+  - [x] 10.5 Implement SINGLE_TURN fallback strategy
     - Treat all events as single turn
     - Apply confidence penalty for using fallback strategy
     - _Requirements: 2.12_
   
-  - [ ] 10.6 Implement event ordering within turns
+  - [x] 10.6 Implement event ordering within turns
     - Apply tie_breaker_order for events with same/missing timestamps
     - Order: USER_INPUT, MODEL_INVOKE, TOOL_CALL, TOOL_RESULT, LLM_OUTPUT_CHUNK, EVENT
     - Maintain source_index for events with invalid timestamps
     - Assign event_order (sequential integer) for deterministic ordering
     - _Requirements: 2.11, 8.6_
 
-- [ ] 11. Implement Generic JSON adapter - Stage C: Derive
-  - [ ] 11.1 Implement top-level field extraction
+- [x] 11. Implement Generic JSON adapter - Stage C: Derive
+  - [x] 11.1 Implement top-level field extraction
     - Extract final_answer using dotted-path syntax (final_answer, trace.final_answer, response.final_answer)
     - Extract user_query using dotted-path syntax (user_query, query, prompt, request.prompt)
     - Extract finish_reason using dotted-path syntax (finish_reason, stop_reason, response.finish_reason)
@@ -230,19 +230,19 @@ The adapter uses a production-ready configuration file (`adapter_config.yaml` v6
     - Precedence: top-level final_answer wins; stream join is fallback if top-level missing
     - _Requirements: 2.3_
   
-  - [ ] 11.2 Implement LLM output streaming
+  - [x] 11.2 Implement LLM output streaming
     - Join LLM_OUTPUT_CHUNK events into final_answer (fallback if top-level final_answer missing)
     - Exclude chunks matching prompt context regex patterns
     - Join with empty string (join_with: "")
     - Limit to max_chars (200000)
     - _Requirements: 2.3_
   
-  - [ ] 11.3 Implement prompt context stripping
+  - [x] 11.3 Implement prompt context stripping
     - Strip events with kind PROMPT_CONTEXT
     - Strip text matching regex patterns (guidelines, preferences, etc.)
     - _Requirements: 2.3_
   
-  - [ ] 11.4 Implement tool linking
+  - [x] 11.4 Implement tool linking
     - Identify tool runs: kind=TOOL_CALL + tool_name required
     - Link tool calls with results via tool_run_id (TOOL_RUN_ID strategy)
     - Link tool calls with results via span hierarchy (SPAN_PARENT_CHILD strategy)
@@ -253,7 +253,7 @@ The adapter uses a production-ready configuration file (`adapter_config.yaml` v6
     - Store orphan_tool_results[] explicitly in adapter_stats (not just penalty)
     - _Requirements: 2.3, 8.7_
   
-  - [ ] 11.5 Implement latency calculation
+  - [x] 11.5 Implement latency calculation
     - Calculate normalized_latency_ms from trusted timestamps
     - Start from first event with kind in: USER_INPUT, MODEL_INVOKE, LLM_OUTPUT_CHUNK, TOOL_CALL
     - End at last event with kind in: LLM_OUTPUT_CHUNK, TOOL_RESULT, EVENT
@@ -261,26 +261,26 @@ The adapter uses a production-ready configuration file (`adapter_config.yaml` v6
     - On missing timestamps: set to null and apply confidence penalty (on_missing_timestamps: "null_and_penalize")
     - _Requirements: 2.9, 2.10, 2.11_
   
-  - [ ] 11.6 Implement phase classification
+  - [x] 11.6 Implement phase classification
     - Classify events into phases: PRE_TOOL_GENERATION, TOOL_CALL, FINAL_GENERATION
     - Based on tool usage patterns
     - _Requirements: 2.3_
   
-  - [ ] 11.7 Implement attribution and stitched trace detection
+  - [x] 11.7 Implement attribution and stitched trace detection
     - Detect tool usage: tool_used_if_has_kind=TOOL_CALL
     - Detect tool output by regex patterns (Retrieved results, statusCode/body JSON)
     - Detect stitched trace suspects: enabled=true, question_line_regex, distinct_question_count_suspect_at=2
     - _Requirements: 2.3_
 
-- [ ] 12. Implement confidence scoring
-  - [ ] 12.1 Implement ConfidenceScorer class
+- [x] 12. Implement confidence scoring
+  - [x] 12.1 Implement ConfidenceScorer class
     - Track confidence penalties with reason, penalty, location
     - Calculate turn-level confidence scores (base: 1.0, subtract penalties)
     - Clamp confidence to [0, 1] range
     - Deduplicate penalties per root cause (e.g., missing_timestamp counted once per turn)
     - _Requirements: 2.5, 2.6_
   
-  - [ ] 12.2 Apply confidence penalties (additive with deduplication)
+  - [x] 12.2 Apply confidence penalties (additive with deduplication)
     - missing_timestamp: 0.4 (dedupe per turn - apply once even if multiple events missing timestamps)
     - missing_grouping_ids: 0.3 (dedupe per turn)
     - no_anchor_found: 0.3 (dedupe per turn)
@@ -291,7 +291,7 @@ The adapter uses a production-ready configuration file (`adapter_config.yaml` v6
     - Don't apply same penalty repeatedly within a turn
     - _Requirements: 2.5, 2.6, 2.11_
   
-  - [ ] 12.3 Emit confidence fields
+  - [x] 12.3 Emit confidence fields
     - Emit run_confidence (aggregation rule: average of valid turn confidences, clamping to [0,1], ignoring empty/invalid turns)
     - Emit turn_confidence for each turn
     - Emit segmentation_strategy_used
@@ -301,8 +301,8 @@ The adapter uses a production-ready configuration file (`adapter_config.yaml` v6
     - Document aggregation rule explicitly: run_confidence = avg(valid_turn_confidences) with empty/invalid turns excluded
     - _Requirements: 2.5_
 
-- [ ] 13. Implement adapter_stats generation
-  - [ ] 13.1 Track processing statistics
+- [x] 13. Implement adapter_stats generation
+  - [x] 13.1 Track processing statistics
     - Track total_events_processed
     - Track events_with_valid_timestamps
     - Track events_with_missing_data
@@ -312,14 +312,14 @@ The adapter uses a production-ready configuration file (`adapter_config.yaml` v6
     - Track turn_count (total number of turns segmented)
     - _Requirements: 2.5_
   
-  - [ ] 13.2 Collect confidence penalties and metadata
+  - [x] 13.2 Collect confidence penalties and metadata
     - Store all confidence_penalties with reason, penalty, location
     - Limit error examples to max_error_examples (20)
     - Store segmentation_strategy_reason (why this strategy was selected)
     - Store canonical_sources summary: top 10 missing fields with which aliases were tried
     - _Requirements: 2.5_
   
-  - [ ] 13.3 Generate adapter_stats object
+  - [x] 13.3 Generate adapter_stats object
     - Include all tracked statistics
     - Include confidence_penalties array
     - Include events_by_kind histogram
@@ -329,15 +329,15 @@ The adapter uses a production-ready configuration file (`adapter_config.yaml` v6
     - Include metadata (adapter_version, processed_at)
     - _Requirements: 2.5_
 
-- [ ] 14. Implement schema validation and error handling
-  - [ ] 14.1 Define exception taxonomy
+- [x] 14. Implement schema validation and error handling
+  - [x] 14.1 Define exception taxonomy
     - InputError: File not found, invalid JSON, unreadable input
     - ValidationError: Schema validation failure, schema file can't load, no events exist
     - AdaptationError: Internal adapter logic errors
     - Ensure JSONDecodeError is wrapped with file path context
     - _Requirements: 2.5, 2.6, 2.7, 3.1, 6.1, 6.2_
   
-  - [ ] 14.2 Integrate schema validation
+  - [x] 14.2 Integrate schema validation
     - Validate output against normalized schema before returning
     - Raise ValidationError if schema file can't be loaded
     - Raise ValidationError if no events exist in input
@@ -345,20 +345,20 @@ The adapter uses a production-ready configuration file (`adapter_config.yaml` v6
     - Raise descriptive errors on validation failure with field details
     - _Requirements: 2.5, 2.6, 2.7, 6.1, 6.2_
   
-  - [ ] 14.3 Implement graceful degradation
+  - [x] 14.3 Implement graceful degradation
     - Missing optional fields → null with confidence penalty (not hard error)
     - Invalid timestamps → mark ts_trusted=false, order by source_index, reduce confidence
     - Orphan tool results → handle gracefully with confidence penalty
     - Tool-looking text without markers → don't misclassify
     - _Requirements: 2.6, 2.11, 8.6, 8.7_
   
-  - [ ] 14.4 Implement file operation error handling
+  - [x] 14.4 Implement file operation error handling
     - Handle FileNotFoundError with clear message (InputError)
     - Handle JSONDecodeError with file path in error (InputError with context)
     - Ensure consistent error wrapping with file path context
     - _Requirements: 3.1_
   
-  - [ ] 14.5 Implement edge case handling
+  - [x] 14.5 Implement edge case handling
     - Negative latency → set to zero with warning
     - Duplicate run_id → process independently
     - Large step arrays (>10,000) → process without memory errors
@@ -418,7 +418,7 @@ The adapter uses a production-ready configuration file (`adapter_config.yaml` v6
     - Test mapping_coverage breakdown (ids/time/tool/text + overall)
     - _Requirements: 2.5, 2.6, 9.3_
   
-  - [ ]* 15.6 Create `agent_eval/tests/test_integration.py`
+  - [x]* 15.6 Create `agent_eval/tests/test_integration.py`
     - Test complete pipeline: Normalize → Classify → Segment → Derive
     - Test single-turn trace normalization
     - Test multi-turn trace normalization
@@ -439,14 +439,14 @@ The adapter uses a production-ready configuration file (`adapter_config.yaml` v6
     - Test negative latency handling
     - _Requirements: 2.6, 2.7, 2.11, 3.1, 8.1, 8.6, 8.7_
   
-  - [ ]* 15.8 Create `agent_eval/tests/test_sample_traces.py`
+  - [x]* 15.8 Create `agent_eval/tests/test_sample_traces.py`
     - Load each sample from examples/sample_traces/
     - Normalize each sample using adapt()
     - Validate output conforms to schema
     - Verify edge cases handled correctly (orphan results, stitched traces, OTEL format, missing timestamps, duplicate tool calls, bad epoch units)
     - _Requirements: 9.1, 9.4, 9.5, 9.6, 9.7, 9.8, 9.9, 9.10_
 
-- [ ] 16. Checkpoint - Ensure all tests pass
+- [x] 16. Checkpoint - Ensure all tests pass
   - Run all unit tests: `pytest -q agent_eval/tests/`
   - Verify coverage threshold: minimum 85% for Phase 1 code
   - Machine-checkable gate: tests must pass + coverage >= 85%
@@ -494,38 +494,112 @@ The adapter uses a production-ready configuration file (`adapter_config.yaml` v6
     - **Invariant 2: Stable Event Ordering** - For any trace, event ordering is deterministic and stable across multiple runs
     - Set iterations configurable via environment variable (e.g., HYPOTHESIS_ITERATIONS=100, CI-friendly)
 
-- [ ] 18. Implement CloudWatch export utility
-  - [ ] 18.1 Create `agent_eval/tools/cloudwatch_extractor.py`
-    - Implement CLI argument parsing (log-group, log-group-prefix, log-group-pattern, days, output-dir, filter)
+- [x] 18. Implement CloudWatch export utility
+  - [x] 18.1 Create `agent_eval/tools/cloudwatch_extractor.py`
+    - **A standalone CloudWatch exporter that emits Generic JSON events only**
+    - **This module is adapter-independent and MUST NOT import any adapter modules**
+    - **Note:** The 3 existing scripts + README in tools/ are AgentCore Observability reference utilities (OTEL/app-log reconstruction pipeline). They demonstrate how AgentCore traces are structured. They are NOT the Generic JSON exporter. Reuse their trace understanding logic where applicable, but do not reuse their turn reconstruction logic.
+    - Implement CLI argument parsing:
+      - `--log-group`
+      - `--log-group-prefix`
+      - `--log-group-pattern`
+      - `--days`
+      - `--start-time`
+      - `--end-time`
+      - `--output-dir`
+      - `--filter`
+      - `--region`
+      - `--profile`
     - Implement `discover_log_groups(prefix, pattern)` function
     - Implement `export_cloudwatch_logs()` function
-    - Use boto3 to query CloudWatch Logs
+    - Use boto3 to query CloudWatch Logs (filter_log_events or Logs Insights as appropriate)
     - Default to 90 days lookback (configurable via --days)
     - Support log group discovery via --log-group-prefix or --log-group-pattern
     - Emit explicit failure message if no log groups found
-    - Handle pagination for large result sets with guardrails
+    - Handle pagination for large result sets with guardrails (max pages / max events safety limit)
     - Implement rate-limiting and exponential backoff for API calls
-    - Output Generic JSON events only (don't extract turns/final_answer - leave to adapter to prevent coupling)
-    - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6_
+    - **When exporting AgentCore Observability logs:**
+      - Preserve OTEL span structure (trace_id, span_id, parent_span_id)
+      - Preserve tool-related fields if present in logs
+      - Do NOT reconstruct turns (leave to adapter)
+    - **Output Generic JSON events only:**
+      - No turn segmentation
+      - No final_answer extraction
+      - No tool linking
+      - No latency derivation
+    - _Requirements: 4.1, 4.2, 4.4, 4.5, 4.6, 5.4, 5.6_
   
-  - [ ] 18.2 Implement log parsing logic
+  - [x] 18.2 Implement log parsing logic
     - Parse CloudWatch log entries into Generic JSON event structure
-    - Extract event-level fields only (timestamp, event_type, attributes, etc.)
-    - Don't attempt turn segmentation or final_answer extraction (adapter's job)
+    - **For AgentCore Observability traces:**
+      - Parse OTEL-style JSON payloads
+      - Extract:
+        - timestamp (normalized ISO 8601 or epoch)
+        - trace_id
+        - span_id
+        - parent_span_id
+        - session_id (if present)
+        - request_id (if present)
+        - event_type
+        - operation
+        - status
+        - latency_ms (if present in span)
+        - attributes (flattened key/value pairs)
+        - text (if message content exists)
+    - **For non-AgentCore logs:**
+      - Attempt best-effort JSON parsing
+      - If plain text, store under `text` field
+    - **Preserve raw CloudWatch metadata:**
+      - log_group
+      - log_stream
+      - ingestion_time
+    - **Do NOT:**
+      - Attempt turn segmentation
+      - Extract final_answer
+      - Perform tool call/result linking
+      - Perform phase classification
+      - Derive normalized_latency_ms
     - Save events as Generic JSON array in individual files
-    - Output to configured output_dir with run_id-based filename
-    - _Requirements: 4.3, 4.7_
+    - Output to configured output_dir with:
+      - export-id-based filename, OR
+      - deterministic hash-based ID derived from (log_group + time window + first trace_id)
+    - Ensure exported files can be processed directly by `adapt()`
+    - _Requirements: 4.3, 5.3_
   
-  - [ ] 18.3 Add error handling for CloudWatch operations
-    - Handle missing AWS credentials with helpful error message
+  - [x] 18.3 Add error handling for CloudWatch operations
+    - Handle missing AWS credentials with helpful authentication error message
+    - Handle expired credentials separately with remediation hint
     - Handle CloudWatch API errors gracefully with retry logic
-    - Handle rate limiting with exponential backoff
+    - Implement exponential backoff with jitter for:
+      - ThrottlingException
+      - RateExceededException
+    - Guard against infinite pagination loops
     - Handle empty result set (no logs found) without error
-    - Handle log group discovery failure with explicit message
-    - _Requirements: 4.5, 4.8, 4.10_
+      - Emit warning
+      - Return empty export file OR no file
+    - Handle log group discovery failure with explicit message and non-zero exit code
+    - Ensure all AWS interactions remain inside exporter module (adapter independence)
+    - _Requirements: 4.5, 4.8, 4.10, 5.1, 5.2_
+
+**🔎 How the 3 Existing Scripts Fit:**
+
+The 3 scripts in tools/:
+- Are AgentCore-specific reconstruction utilities
+- Extract turns and final answers
+- Parse OTEL spans and merge runtime logs
+- Perform segmentation and enrichment
+
+In Task 18:
+- They serve as **reference** for understanding AgentCore trace structure
+- They are **NOT** the canonical export utility
+- They should **NOT** be called by cloudwatch_extractor.py
+- They remain useful for:
+  - Manual debugging
+  - Cross-validation against adapter normalization
+  - Comparing reconstructed vs normalized output
 
 - [ ]* 19. Write tests for CloudWatch export utility
-  - [ ]* 19.1 Create `agent_eval/tests/test_cloudwatch_export.py`
+  - [x]* 19.1 Create `agent_eval/tests/test_cloudwatch_export.py`
     - Use botocore.stub.Stubber (or moto) for mocking boto3 calls
     - Assert no adapter module imports inside exporter (verify isolation)
     - Test log group discovery with prefix
@@ -548,8 +622,8 @@ The adapter uses a production-ready configuration file (`adapter_config.yaml` v6
     - **Property 11: CloudWatch Export Validation** - For any traces exported from CloudWatch, adapter achieves 100% schema compliance for clean inputs
     - **Validates: Requirements 9.2, 9.3**
 
-- [ ] 20. Add logging and documentation
-  - [ ] 20.1 Add logging to adapter
+- [x] 20. Add logging and documentation
+  - [x] 20.1 Add logging to adapter
     - Add INFO logging for successful normalizations
     - Add INFO logging for segmentation strategy selected
     - Add WARNING logging when applying defaults and confidence penalties
@@ -559,7 +633,7 @@ The adapter uses a production-ready configuration file (`adapter_config.yaml` v6
     - Add --debug flag support to print adapter_stats and segmentation_strategy_reason
     - _Requirements: 2.3, 3.5_
   
-  - [ ] 20.2 Add comprehensive docstrings
+  - [x] 20.2 Add comprehensive docstrings
     - Document `adapt()` with examples (renamed from load_and_normalize_trace)
     - Document DEFAULT_CONFIG_PATH constant
     - Document all internal classes and methods
@@ -569,7 +643,7 @@ The adapter uses a production-ready configuration file (`adapter_config.yaml` v6
     - Document exception taxonomy (InputError, ValidationError, AdaptationError)
     - _Requirements: 2.1_
   
-  - [ ] 20.3 Update agent-eval README
+  - [x] 20.3 Update agent-eval README
     - Add Phase 1 usage examples with adapt() function
     - Document turn-aware schema structure
     - Document adapter_config.yaml stages (Normalize → Classify → Segment → Derive)
@@ -582,7 +656,7 @@ The adapter uses a production-ready configuration file (`adapter_config.yaml` v6
     - Document --debug flag for troubleshooting
     - _Requirements: 7.7_
 
-- [ ] 21. Final checkpoint - Validate Phase 1 completion
+- [x] 21. Final checkpoint - Validate Phase 1 completion
   - Run all tests (unit + property-based): `pytest -q agent_eval/tests/`
   - Verify coverage threshold: minimum 85% for Phase 1 code
   - Verify all sample traces normalize successfully

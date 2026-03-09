@@ -1,0 +1,57 @@
+{
+  "events": [
+    {
+      "event_type": "USER_INPUT",
+      "timestamp": "2024-03-09T10:00:00Z",
+      "session_id": "session-009",
+      "trace_id": "trace-009",
+      "turn_id": "1",
+      "content": "Turn 1 user"
+    },
+    {
+      "event_type": "NOISE_EVENT",
+      "timestamp": "2024-03-09T10:00:00.5Z",
+      "session_id": "session-009",
+      "trace_id": "trace-009",
+      "content": "Noise without turn_id"
+    },
+    {
+      "event_type": "ASSISTANT_OUTPUT",
+      "timestamp": "2024-03-09T10:00:01Z",
+      "session_id": "session-009",
+      "trace_id": "trace-009",
+      "turn_id": "1",
+      "content": "Turn 1 assistant"
+    },
+    {
+      "event_type": "NOISE_EVENT",
+      "timestamp": "2024-03-09T10:00:05Z",
+      "session_id": "session-009",
+      "trace_id": "trace-009",
+      "content": "More noise"
+    },
+    {
+      "event_type": "USER_INPUT",
+      "timestamp": "2024-03-09T10:00:10Z",
+      "session_id": "session-009",
+      "trace_id": "trace-009",
+      "turn_id": "2",
+      "content": "Turn 2 user"
+    },
+    {
+      "event_type": "NOISE_EVENT",
+      "timestamp": "2024-03-09T10:00:11Z",
+      "session_id": "session-009",
+      "trace_id": "trace-009",
+      "content": "Even more noise"
+    },
+    {
+      "event_type": "ASSISTANT_OUTPUT",
+      "timestamp": "2024-03-09T10:00:12Z",
+      "session_id": "session-009",
+      "trace_id": "trace-009",
+      "turn_id": "2",
+      "content": "Turn 2 assistant"
+    }
+  ]
+}

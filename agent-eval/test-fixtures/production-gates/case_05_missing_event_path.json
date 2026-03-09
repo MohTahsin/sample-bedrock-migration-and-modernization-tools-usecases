@@ -1,0 +1,11 @@
+{
+  "data": {
+    "trace_items": [
+      {
+        "event_type": "USER_INPUT",
+        "timestamp": "2024-03-09T10:00:00Z",
+        "content": "This won't be found"
+      }
+    ]
+  }
+}

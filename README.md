@@ -29,7 +29,7 @@ Production-ready patterns and examples.
 - Reference architectures
 
 ### 4. Agentic Evaluation — Evaluate agent behavior from traces (offline)
-**[agent-evaluation](agent-evaluation/)**
+**[agent-eval](agent-eval/)**
 
 Agentic Evaluation evaluates agent behavior and outcome quality from recorded traces — without invoking the runtime.
 

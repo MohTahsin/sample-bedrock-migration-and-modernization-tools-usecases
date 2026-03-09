@@ -1,0 +1,34 @@
+{
+  "session_id": "sess-bad-003",
+  "trace_id": "trace-bad-003",
+  "events": [
+    {
+      "timestamp": "2026-03-09T10:05:00Z",
+      "type": "user_message",
+      "turn_id": "turn-1",
+      "content": "What is my current account balance?"
+    },
+    {
+      "timestamp": "2026-03-09T10:05:01Z",
+      "type": "tool_call",
+      "turn_id": "turn-1",
+      "tool_name": "account_api",
+      "tool_run_id": "tool-004",
+      "tool_arguments": "{\"action\":\"get_balance\"}"
+    },
+    {
+      "timestamp": "2026-03-09T10:05:03.500Z",
+      "type": "tool_result",
+      "turn_id": "turn-1",
+      "tool_run_id": "tool-004",
+      "tool_error": "upstream timeout",
+      "status": "error"
+    },
+    {
+      "timestamp": "2026-03-09T10:05:05.800Z",
+      "type": "model_output",
+      "turn_id": "turn-1",
+      "content": "Your current balance is $12,481.22."
+    }
+  ]
+}

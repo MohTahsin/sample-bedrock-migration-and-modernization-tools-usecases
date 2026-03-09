@@ -1,0 +1,33 @@
+{
+  "session_id": "sess-good-002",
+  "trace_id": "trace-good-002",
+  "events": [
+    {
+      "timestamp": "2026-03-09T10:01:00Z",
+      "type": "user_message",
+      "turn_id": "turn-1",
+      "content": "What is the weather in Seattle today?"
+    },
+    {
+      "timestamp": "2026-03-09T10:01:01Z",
+      "type": "tool_call",
+      "turn_id": "turn-1",
+      "tool_name": "weather_api",
+      "tool_run_id": "tool-001",
+      "tool_arguments": "{\"city\":\"Seattle\"}"
+    },
+    {
+      "timestamp": "2026-03-09T10:01:04.200Z",
+      "type": "tool_result",
+      "turn_id": "turn-1",
+      "tool_run_id": "tool-001",
+      "tool_result": "{\"temp_f\":58,\"condition\":\"Rain\"}"
+    },
+    {
+      "timestamp": "2026-03-09T10:01:06.800Z",
+      "type": "model_output",
+      "turn_id": "turn-1",
+      "content": "It is 58°F and rainy in Seattle today."
+    }
+  ]
+}

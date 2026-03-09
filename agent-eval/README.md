@@ -1,52 +1,258 @@
 # Agent Evaluation Framework
 
-Evaluate agent behavior and response quality from recorded traces — without invoking the agent runtime.
+Evaluate agent behavior and response quality from recorded execution traces without re-running the agent runtime. The framework uses deterministic metrics and configurable rubric-based judges (including LLM judges where configured).
 
-This framework analyzes previously recorded agent execution traces and produces evaluation metrics for:
+## Why This Exists
 
-- **Orchestrator responses**: Decision-making patterns and reasoning quality
-- **Tool/sub-agent usage**: Execution flow and tool selection accuracy
-- **Latency and failures**: Performance metrics and error patterns
-- **Correctness vs golden answers**: Output quality using judge models
+Most agent evaluation systems require re-running the agent runtime. This framework evaluates previously recorded execution traces instead, making it suitable for offline analysis, CI pipelines, and regression testing.
 
-It is designed for offline evaluation, making it suitable for:
+## What This Framework Does
 
-- CI/CD pipelines
-- Regression testing
-- Batch trace analysis
-- Production observability audits
+- Evaluates recorded agent execution traces
+- Computes deterministic execution metrics (turn counts, tool usage, latency)
+- Scores traces using configurable rubric-based judges
+- Produces structured evaluation artifacts
+
+## What This Framework Does Not Do
+
+- It does not run the agent runtime
+- It does not require access to the original agent infrastructure
+- It does not depend on a specific agent framework
 
 ## Core Idea
 
-Instead of running the agent again, this framework evaluates recorded traces.
+The framework accepts JSON traces containing agent execution events. These traces are typically exported from custom runtimes, OpenTelemetry pipelines, CloudWatch logs, or AgentCore observability data.
+
+Raw traces are normalized into a standard schema and then evaluated using deterministic metrics and optional judge-based scoring.
+
+## Architecture
+
+The system follows a three-stage pipeline with clear separation of concerns.
 
 ```
-Agent runtime
-      │
-      │ produces traces
-      ▼
-Trace JSON
+CLI
+(agent_eval/cli.py)
       │
       ▼
-Agent Evaluation Framework
+Generic JSON Adapter
+(agent_eval/adapters/generic_json/adapter.py)
       │
       ▼
-Metrics + evaluation results
+NormalizedRun (standard schema)
+(agent_eval/schemas/normalized_run.schema.json)
+      │
+      ▼
+Trace Evaluator
+(agent_eval/evaluators/trace_eval/runner.py)
+   ├── Deterministic metrics (deterministic_metrics.py)
+   └── Judge-based evaluation:
+       │
+       ├─ Evidence Extraction (judging/evidence.py)
+       │
+       ├─ Judge Job Queue (judging/queue_runner.py)
+       │
+       ├─ Parallel Judge Execution Workers
+       │
+       └─ Score Aggregation (judging/aggregator.py)
+      │
+      ▼
+Evaluation Artifacts
+   ├── results.json
+   ├── trace_eval.json
+   └── judge_runs.jsonl
 ```
 
-**Supported trace sources:**
-- Custom agent logs
-- OpenTelemetry traces
-- CloudWatch exports
-- AgentCore traces (in progress)
+### Two Types of Evaluation
 
-## Quick Start (Recommended Path)
+The framework combines two evaluation approaches:
 
-### Step 1 — Bring Your Raw Trace JSON
+**Deterministic metrics**
+- Turn counts
+- Tool usage statistics
+- Latency measurements
+- Execution errors
 
-The easiest way to use the framework is to bring your own raw trace JSON file.
+**LLM judge evaluation**
+- Correctness
+- Groundedness
+- Reasoning quality
+- Tool usage quality
 
-**Example raw trace:**
+## Installation
+
+Requires Python 3.11+
+
+```bash
+git clone https://github.com/<org>/agent-eval.git
+cd agent-eval
+pip install -e .
+```
+
+## Typical Workflow
+
+1. Export trace logs from your agent system
+2. Run the evaluation pipeline
+3. Inspect results.json and trace_eval.json
+4. Use outputs for regression testing or quality analysis
+
+## 2-Minute Runnable Example
+
+Get started immediately with a working example:
+
+```bash
+# Run evaluation on sample trace
+python -m agent_eval.cli \
+  --input test-fixtures/baseline/good_001_direct_answer.json \
+  --judge-config test-fixtures/baseline/judges.mock.yaml \
+  --rubrics test-fixtures/baseline/rubrics.test.yaml \
+  --output-dir ./output
+```
+
+**Expected output:**
+```
+output/
+  ├── results.json              # Final evaluation scores
+  ├── trace_eval.json           # Detailed metrics and metadata
+  ├── judge_runs.jsonl          # Raw judge outputs
+  └── normalized_run.*.json     # Normalized trace artifact
+```
+
+### Artifacts Explained
+
+- `results.json` → Final aggregated evaluation scores
+- `trace_eval.json` → Detailed metrics and evidence
+- `judge_runs.jsonl` → Raw judge model responses
+- `normalized_run.*` → Adapter output for debugging
+
+**Sample results.json:**
+```json
+{
+  "run_id": "generated_3fa9d49d25a4a571",
+  "deterministic_metrics": {
+    "turn_count": 1,
+    "tool_call_count": 0,
+    "tool_result_count": 0,
+    "tool_success_rate": null
+  },
+  "rubric_results": {
+    "TRACE_COMPLETENESS": {
+      "cross_judge_score": 3.0
+    }
+  }
+}
+```
+
+## Judge Configuration
+
+The framework supports two judge modes:
+
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| **Mock Judges** | Deterministic responses for testing | CI/CD, testing, development |
+| **Real Judges** | LLM-based scoring using Bedrock/OpenAI | Production evaluation, quality assessment |
+
+The Quick Start uses mock judges so the evaluation pipeline can run without external APIs or credentials. Mock judges return deterministic placeholder scores for pipeline validation and do not measure actual semantic quality.
+
+### Using Real LLM Judges
+
+Judges are defined in a YAML configuration file passed to the CLI:
+
+```yaml
+judges:
+  - judge_id: judge_1
+    provider: bedrock
+    model_id: anthropic.claude-3-sonnet-20240229-v1:0
+    params:
+      temperature: 0.0
+      max_tokens: 1000
+```
+
+```bash
+python -m agent_eval.cli \
+  --input trace.json \
+  --judge-config judges.yaml \
+  --rubrics rubrics.yaml \
+  --output-dir ./output
+```
+
+Typical setups use 1-5 judges for cross-model comparison and disagreement detection. The framework runs judges in parallel and aggregates scores with disagreement signals.
+
+Additional providers can be added by implementing a judge client in `agent_eval/judges/`.
+
+### Judge Execution Model
+
+Judge evaluations are executed through a queue-based orchestration layer that enables parallel evaluation across judges and rubrics.
+
+For each evaluation run:
+
+```
+Rubric × Judge combinations
+        │
+        ▼
+Judge Job Queue (queue_runner.py)
+        │
+        ▼
+Parallel judge execution
+        │
+        ▼
+Score aggregation (aggregator.py)
+```
+
+Each judge evaluates the same extracted evidence independently. The framework then aggregates scores across judges to produce the final rubric result.
+
+This design allows evaluation workloads to scale across multiple judges while keeping the pipeline deterministic and reproducible.
+
+## Trace Input and Adapter
+
+The adapter is the core innovation that makes this framework work with any trace format.
+
+**Key capability:** Converts arbitrary JSON traces into a standardized schema automatically.
+
+**Configuration:** Field mappings and segmentation strategies are defined in:
+```
+agent_eval/adapters/generic_json/adapter_config.yaml
+```
+
+Users can customize this file to extend mappings for their specific trace formats.
+
+**How it works:**
+1. Configurable field aliases map your trace fields to standard names
+2. Turn segmentation strategies group events into conversation turns
+3. Tool linking connects tool calls with their results
+4. Confidence scoring tracks data quality
+
+**Example usage:**
+```python
+from agent_eval.adapters.generic_json import adapt
+
+normalized = adapt("trace.json")
+
+print(normalized["run_id"])
+print(len(normalized["turns"]))
+```
+
+### What You Need to Provide
+
+For the built-in quick start, sample trace, judge config, and rubrics are already provided.
+
+For your own data, you need:
+- One raw trace JSON file
+- One judge config YAML
+- One rubric config YAML
+- An output directory
+
+### Minimal Trace Requirements
+
+Raw traces should contain at minimum:
+
+- **timestamp**: Event timing (ISO8601 or epoch)
+- **event_type**: Event classification (e.g., "user_message", "llm_output")
+- **text** or tool metadata: Content or tool execution data
+- **session_id** or grouping identifier: To group related events
+
+The Generic JSON Adapter maps these fields automatically using configurable aliases in `adapter_config.yaml`.
+
+**Example minimal trace:**
 ```json
 {
   "events": [
@@ -66,158 +272,36 @@ The easiest way to use the framework is to bring your own raw trace JSON file.
 }
 ```
 
-Save this as: `trace.json`
+## Debugging Adapter Behavior
 
-### Step 2 — Run the Evaluation Pipeline
-
-```bash
-python -m agent_eval.cli \
-  --input trace.json \
-  --judge-config test-fixtures/judges.mock.yaml \
-  --rubrics test-fixtures/rubrics.test.yaml \
-  --output-dir ./output
-```
-
-**Output files:**
-```
-output/
-  ├── trace_eval.json
-  ├── results.json
-  └── judge_runs.jsonl
-```
-
-These contain:
-- Deterministic metrics
-- Rubric scores
-- Judge model evaluations
-
-## Input Types Supported
-
-The pipeline accepts two types of inputs.
-
-### 1️⃣ Raw Traces
-
-Any JSON trace containing agent events.
-
-**Example:** `raw_trace.json`
-
-The framework automatically normalizes the trace using the Generic JSON Adapter.
-
-### 2️⃣ Normalized Runs
-
-If you already have normalized traces: `normalized_run.json`
-
-You can run evaluation directly:
+If evaluation metrics look incorrect (wrong turn counts, missing tool calls, etc.), inspect the adapter pipeline:
 
 ```bash
-python -m agent_eval.cli \
-  --input normalized_run.json \
-  --judge-config judges.yaml \
-  --rubrics rubrics.yaml \
-  --output-dir ./output
+python -m agent_eval.tools.inspect_adapter_stages trace.json
 ```
 
-## Evaluation Output
+**Pipeline stages:**
+- **Stage A**: Event normalization (field extraction, type classification)
+- **Stage B**: Turn segmentation (grouping strategy, turn boundaries)
+- **Stage C**: Tool linking (call/result pairing, status inference)
+- **Stage D**: Confidence scoring (data quality penalties)
 
-The framework generates multiple artifacts.
+**Use when:**
+- Debugging incorrect turn_count or tool_success_rate
+- Diagnosing segmentation issues
+- Verifying tool linking behavior
+- Understanding how a specific trace is processed
 
-### `trace_eval.json`
+## Evaluation Artifacts
 
-Contains evaluation metadata and deterministic metrics.
+- `results.json` → Final aggregated scores
+- `trace_eval.json` → Detailed evaluation output
+- `judge_runs.jsonl` → Raw judge responses
+- `normalized_run.*.json` → Normalized trace used by evaluator
 
-**Example:**
-```json
-{
-  "run_id": "abc123",
-  "metrics": {
-    "turns": 2,
-    "tool_calls": 1,
-    "latency_ms": 1320
-  }
-}
-```
+## Optional Integrations
 
-### `results.json`
-
-Contains final rubric scores.
-
-**Example:**
-```json
-{
-  "rubric_scores": {
-    "correctness": 0.9,
-    "tool_usage": 0.8
-  }
-}
-```
-
-### `judge_runs.jsonl`
-
-Raw judge model outputs. Used for debugging or auditing.
-
-## Architecture
-
-The system follows a three-stage architecture.
-
-```
-RAW TRACE
-    │
-    ▼
-Extractor (optional)
-    │
-    ▼
-Adapter
-    │
-    ▼
-NormalizedRun
-    │
-    ▼
-Evaluator
-    │
-    ▼
-Metrics + Judge Scores
-```
-
-### Extractor
-
-Collects traces from sources such as:
-- CloudWatch
-- AgentCore
-- OpenTelemetry
-- Log exports
-
-### Adapter
-
-Converts arbitrary traces into a standardized schema: **NormalizedRun**
-
-### Evaluator
-
-Runs evaluation logic:
-- Deterministic metrics
-- Rubric scoring
-- LLM judges
-
-## Generic JSON Adapter
-
-The adapter converts arbitrary traces into a standardized schema.
-
-**Supported formats:**
-- OpenTelemetry
-- CloudWatch
-- Custom logs
-- Generic JSON traces
-
-**Example usage:**
-```python
-from agent_eval.adapters.generic_json import adapt
-
-normalized = adapt("trace.json")
-
-print(normalized["run_id"])
-print(len(normalized["turns"]))
-```
-
-## CloudWatch Log Export (Optional)
+### CloudWatch Log Export
 
 You can export logs from CloudWatch and evaluate them.
 
@@ -308,7 +392,7 @@ Only the **OTEL stream** contains structured trace data.
 |---------|--------|
 | Generic JSON Adapter | ✅ Complete |
 | Evaluation Pipeline | ✅ Complete |
-| CloudWatch Exporter | ✅ Complete |
+| CloudWatch Exporter | ⚠️ Available, broader validation in progress |
 | AgentCore ARN Wrapper | ⚠️ In Progress |
 | OTEL Trace Extraction | ⚠️ In Progress |
 
@@ -325,22 +409,15 @@ Only the **OTEL stream** contains structured trace data.
 
 See `guides/` directory for detailed validation results and progress tracking.
 
-## Installation
-
-```bash
-cd agent-eval
-pip install -e .
-```
-
 ## Running Tests
 
-Run the full test suite:
+Recommended validated component suite:
 
 ```bash
-pytest agent_eval/tests/ -v
+pytest agent_eval/tests/component/ -v
 ```
 
-Run specific test suites:
+Additional / in-progress test suites:
 
 ```bash
 # Adapter tests
@@ -388,6 +465,13 @@ agent-eval/
   └── guides/                # Documentation
 ```
 
+## Current Limitations
+
+- **Quick start behavior**: The default sample configuration uses mock judges for deterministic pipeline validation, not semantic model-quality scoring. Real LLM judges require additional configuration.
+- **AgentCore integration**: ARN-based extraction is still in progress.
+- **OpenTelemetry fields**: Some fields (e.g., `user_query`) may not be available in CloudWatch exports due to Insights limitations.
+- **Trace format assumptions**: While the adapter is flexible, it assumes event-based trace structure with timestamps.
+
 ## Contributing
 
 This module uses isolated dependencies.
@@ -399,42 +483,12 @@ pip install -e ".[dev]"
 
 **Run tests:**
 ```bash
-pytest
-```
-
-## Summary
-
-This framework enables offline evaluation of agent traces.
-
-**Primary workflow:**
-```
-Bring trace JSON
-        │
-        ▼
-Normalize trace
-        │
-        ▼
-Run evaluation pipeline
-        │
-        ▼
-Get metrics + rubric scores
-```
-
-**Future workflow:**
-```
-AgentCore Runtime
-        │
-        ▼
-Automatic trace extraction
-        │
-        ▼
-Evaluation metrics
+pytest agent_eval/tests/component/ -v
 ```
 
 ---
 
 For detailed documentation on specific components, see:
-- **Generic JSON Adapter**: See "Generic JSON Adapter" section above
 - **AgentCore Integration**: `agent_eval/tools/agentcore_pipeline/README.md`
 - **Validation Results**: `guides/VALIDATION_RESULTS.md`
 - **Progress Tracking**: `guides/FIX_PROGRESS.md`
