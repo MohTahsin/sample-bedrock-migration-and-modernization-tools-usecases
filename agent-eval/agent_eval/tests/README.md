@@ -21,26 +21,13 @@ agent_eval/tests/
 │   └── test_pipeline_e2e.py                      # End-to-end pipeline (Req 9.x)
 │
 ├── baseline/                                      # Baseline corpus validation
-│   └── test_baseline_corpus.py                   # Tests against 11-trace corpus
-│
-├── test_production_gates.py                      # Production gate tests (Phase 1)
-├── test_production_gates_phase2.py               # Production gate tests (Phase 2)
-├── test_production_gates_phase2_extended.py      # Extended production tests
+│   └── test_baseline_corpus.py                   # Tests against 3-trace corpus
 │
 ├── test_adapter_preservation_segmentation.py     # Turn segmentation preservation
 ├── test_adapter_preservation_tool_status.py      # Tool status preservation
 ├── test_adapter_segmentation_regression.py       # Segmentation regression tests
 ├── test_adapter_tool_status_regression.py        # Tool status regression tests
-│
-├── test_sanity.py                                # Infrastructure sanity tests
-├── test_hypothesis_sanity.py                     # Property-based testing sanity
 ├── test_property_bounded_concurrency.py          # Concurrency property tests
-├── test_log_group_discovery.py                   # Log group discovery tests
-├── test_discovery_integration.py                 # Discovery workflow integration
-├── test_cloudwatch_export.py                     # CloudWatch export tests
-├── test_01_export_turns.py                       # Turn export tests
-├── test_run_from_agentcore_arn.py                # AgentCore ARN integration
-├── test_run_from_agentcore_arn_pipeline.py       # AgentCore pipeline integration
 ├── test_adapter_integration.py                   # Adapter integration tests
 ├── test_adapter_resilience.py                    # Adapter resilience tests
 ├── test_trace_eval_integration.py                # Trace evaluator integration
@@ -51,7 +38,7 @@ agent_eval/tests/
 ├── test_input_validator.py                       # Input validation tests
 ├── test_config_loader.py                         # Config loader tests
 ├── test_judge_config.py                          # Judge config tests
-├── test_module_imports.py                        # Module import tests
+├── test_selector_validation.py                   # Rubric selector validation
 └── test_utils.py                                 # Test utilities and helpers
 ```
 
@@ -72,18 +59,17 @@ pytest agent_eval/tests/ -v
 # Component tests only (200 tests)
 pytest agent_eval/tests/component/ -v
 
-# Baseline corpus validation (11 traces)
+# Baseline corpus validation (3 traces)
 pytest agent_eval/tests/baseline/ -v
-
-# Production gate tests
-pytest agent_eval/tests/test_production_gates.py -v
-pytest agent_eval/tests/test_production_gates_phase2.py -v
 
 # Adapter regression tests
 pytest agent_eval/tests/test_adapter_*_regression.py -v
 
 # Property-based tests
 pytest agent_eval/tests/test_property_*.py -v
+
+# Selector validation tests
+pytest agent_eval/tests/test_selector_validation.py -v
 ```
 
 ### Run specific test markers
@@ -226,18 +212,17 @@ def test_property(x):
 ## Test Coverage Goals
 
 - **Phase 1 (Complete)**: Minimum 85% coverage for core adapter functionality ✓
-- **Phase 2 (Complete)**: Deterministic baseline validation with 11-trace corpus ✓
+- **Phase 2 (Complete)**: Deterministic baseline validation with 3-trace corpus ✓
 - **Phase 3 (Complete)**: Component validation suite with 200 tests covering 9 requirement areas ✓
-- **Phase 4 (Complete)**: Production gate tests with 14+ test cases ✓
-- **Current Status**: ~280 total tests, all passing (200 passed, 2 skipped in component suite)
+- **Current Status**: ~220 total tests across 19 test files
 - **Future Phases**: Maintain or increase coverage as new features are added
 
 ## Baseline Validation Testing
 
-The baseline validation tests ensure the non-LLM components (adapter, deterministic metrics, tool counting) are stable before introducing real LLM judges. See [Baseline Testing Guide](../../guides/BASELINE_TESTING_GUIDE.md) for detailed information.
+The baseline validation tests ensure the non-LLM components (adapter, deterministic metrics, tool counting) are stable before introducing real LLM judges. See [Baseline Testing Guide](../../../guides/BASELINE_TESTING_SUMMARY.md) for detailed information.
 
 Key aspects:
-- Fixed corpus of 11 traces (3 good, 3 bad, 2 partial/ambiguous, 2 weird, 1 ambiguous)
+- Fixed corpus of 3 good traces for deterministic validation
 - Known expected outcomes for each trace
 - Validates deterministic metrics, tool counts, latency fields, turn counts
 - Tests failure handling and edge cases
@@ -247,62 +232,14 @@ Key aspects:
 Test fixtures are organized in `test-fixtures/` directory:
 
 ### Baseline Corpus (`test-fixtures/baseline/`)
-11 production-representative traces for deterministic validation:
+3 production-representative traces for deterministic validation:
 - `good_001_direct_answer.json` - Single turn, no tools
 - `good_002_tool_grounded.json` - Tool used correctly
 - `good_003_two_turn_noise.json` - Multi-turn with noise filtering
-- `bad_001_wrong_math.json` - Factually incorrect answer
-- `bad_002_ignores_tool.json` - Tool result ignored
-- `bad_003_tool_failed_hallucinated.json` - Failed tool + hallucination
-- `partial_001_incomplete_but_ok.json` - Brief but correct
-- `partial_002_hedged_without_tool.json` - Hedged answer
-- `ambiguous_001_hedged_without_tool.json` - Uncertain response
-- `weird_001_duplicate_tool_calls.json` - Duplicate tool events
-- `weird_002_orphan_tool_result.json` - Orphan tool result
 
 Metadata files:
 - `manifest.yaml` - Trace catalog with validation types
 - `expected_outcomes.yaml` - Expected metrics for each trace
-
-### Production Gates (`test-fixtures/production-gates/`)
-14 test cases for production readiness validation:
-- `case_01_single_turn_clean.json` - Clean single turn
-- `case_02_multi_turn_clean.json` - Clean multi-turn
-- `case_05_missing_event_path.json` - Missing event paths
-- `case_06_malformed_events.json` - Malformed event structures
-- `case_07_dirty_timestamps.json` - Inconsistent timestamps
-- `case_08_missing_grouping_ids.json` - Missing IDs
-- `case_09_turn_segmentation_noise.json` - Noisy turn boundaries
-- `case_10_tool_success_inference.json` - Tool success detection
-- `case_11_tool_failure_inference.json` - Tool failure detection
-- `case_12_span_parent_linking.json` - Span hierarchy
-- `case_14_prompt_contamination.json` - Prompt in output
-- And more...
-
-### Production Gates Phase 2 (`test-fixtures/production-gates-phase2/`)
-Extended production validation with real traces:
-- `real-traces/` - Real production trace samples
-- `manifest.yaml` - Phase 2 trace catalog
-
-### Regression Tests (`test-fixtures/regression/`)
-Regression test cases for adapter fixes:
-- Tool status preservation tests
-- Turn segmentation tests
-- `run_regression_tests.py` - Regression test runner
-
-### Validation Traces (`test-fixtures/validation/`)
-Additional validation traces for specific scenarios
-
-### Minimal/Noisy Traces (root level)
-- `raw_trace_minimal.json` - Minimal valid trace
-- `normalized_run_minimal.json` - Minimal normalized format
-- `raw_trace_noisy_001.json` through `raw_trace_noisy_005.json` - Noisy traces
-- `weird_001_noisy_toplevel.json` through `weird_006_ridiculous.json` - Edge cases
-- `malformed_raw_trace.json` - Invalid JSON structure
-
-### Configuration Files
-- `judges.mock.yaml` - Mock judge configuration for testing
-- `rubrics.test.yaml` - Test rubric definitions
 
 ### Expected Results (`test-fixtures/expected-results/`)
 Expected normalized outputs for validation:
@@ -311,7 +248,15 @@ Expected normalized outputs for validation:
 - `weird_001_noisy_toplevel.expected.json`
 - `weird_002_mixed_fields.expected.json`
 - `weird_003_tool_calls.expected.json`
-- `weird_004_malformed.expected.json`
+
+### Configuration Files
+- `judges.mock.yaml` - Mock judge configuration for testing
+- `judges.real.single.yaml` - Single judge configuration
+- `judges.real.multi.yaml` - Multi-judge configuration
+- `rubrics.alt.yaml` - Alternate rubric definitions
+
+### Minimal/Edge Case Traces (root level)
+- `malformed_raw_trace.json` - Invalid JSON structure for error handling tests
 
 ## Continuous Integration
 
@@ -352,7 +297,7 @@ If baseline tests fail:
 2. Verify `expected_outcomes.yaml` is present and valid
 3. Review adapter logs for parsing errors
 4. Compare actual vs expected metrics
-5. See [Baseline Testing Guide](../../guides/BASELINE_TESTING_GUIDE.md) for detailed debugging
+5. See [Baseline Testing Guide](../../../guides/BASELINE_TESTING_SUMMARY.md) for detailed debugging
 
 ## Quick Start: Baseline Testing
 
@@ -368,6 +313,6 @@ To get started with baseline validation testing:
    pytest agent-eval/tests/baseline/ -v
    ```
 
-3. **Review results**: All 10 traces should pass with exact metric matches
+3. **Review results**: All 3 traces should pass with exact metric matches
 
-4. **See detailed guide**: [Baseline Testing Guide](../../guides/BASELINE_TESTING_GUIDE.md)
+4. **See detailed guide**: [Baseline Testing Guide](../../../guides/BASELINE_TESTING_SUMMARY.md)
