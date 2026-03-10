@@ -61,6 +61,8 @@ agent-eval/analyze_*.py
 agent-eval/compare_*.py
 agent-eval/inspect_*.py
 agent-eval/verify_*.py
+agent-eval/test_*.py
+agent-eval/validate_*.py
 
 # Validation/debug scripts (temporary)
 agent-eval/*_VALIDATION.md
