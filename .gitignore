@@ -56,10 +56,13 @@ agent-eval/test-output/
 agent-eval/test-step1-*/
 agent-eval/.smoke-test-output/
 agent-eval/.pre-push-test-*/
+agent-eval/output_*/
+agent-eval/analyze_*.py
+agent-eval/compare_*.py
+agent-eval/inspect_*.py
+agent-eval/verify_*.py
 
 # Validation/debug scripts (temporary)
-agent-eval/validate_*.py
-agent-eval/test_*.py
 agent-eval/*_VALIDATION.md
 agent-eval/*_SUMMARY.md
 agent-eval/*_FIXES*.md
