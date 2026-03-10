@@ -25,6 +25,21 @@ The framework accepts JSON traces containing agent execution events. These trace
 
 Raw traces are normalized into a standard schema and then evaluated using deterministic metrics and optional judge-based scoring.
 
+**Mental model:**
+```
+Raw trace logs
+      ↓
+Adapter normalizes trace
+      ↓
+NormalizedRun (standard schema)
+      ↓
+Evaluator computes:
+  • deterministic metrics
+  • rubric-based judge scores
+      ↓
+Structured evaluation artifacts
+```
+
 ## Architecture
 
 The system follows a three-stage pipeline with clear separation of concerns.
@@ -78,6 +93,99 @@ The framework combines two evaluation approaches:
 - Reasoning quality
 - Tool usage quality
 
+### Rubric-Driven and Scale-Aware Evaluation
+
+Evaluation behavior is controlled by rubric configuration. Each rubric is an independent evaluation criterion (e.g., tool groundedness, safety/PII detection).
+
+**Rubric system:**
+- 8 default rubrics shipped with the system (6 LLM-based, 2 deterministic)
+- User rubrics override defaults with matching IDs or add new criteria
+- Final evaluation uses merged rubrics (user overrides + remaining defaults)
+- Each LLM rubric runs 3 times by default (repeats=3) for consistency measurement
+
+Each rubric is evaluated multiple times (default: 3) to measure score stability. Repeated runs allow the system to compute median, mean, and variance for each judge.
+
+**Rubric configuration controls:**
+- What quality dimensions are evaluated (correctness, groundedness, etc.)
+- Whether evaluation is turn-scoped or run-scoped
+- What evidence is extracted from the trace
+- How judges score the trace (numeric scales vs categorical)
+- How scores are aggregated across multiple judges
+- How disagreement is normalized and computed
+
+**Scale-aware aggregation:**
+The framework uses rubric scoring scales (e.g., 1-5, 1-10, categorical) to drive:
+- Numeric vs categorical score handling
+- Disagreement computation (normalized by scale range)
+- Variance-weighted aggregation across judges
+- Cross-rubric comparability
+
+Example:
+```bash
+python -m agent_eval.cli \
+  --input trace.json \
+  --judge-config judges.yaml \
+  --rubrics rubrics.yaml \
+  --output-dir ./output
+```
+
+Changing `rubrics.yaml` changes which evaluation criteria run and how evidence is selected, without changing application code. The scoring scale defined in each rubric automatically adjusts how scores are aggregated and how disagreement is measured.
+
+## Rubric Scope and Evidence Selectors
+
+Rubrics can evaluate either a single turn or the entire run. The scope determines what data is available to evidence selectors.
+
+**Turn scope** (`scope: turn`)
+- Evaluates each conversation turn independently
+- Evidence extraction context is a single turn object
+- Selectors must be turn-relative
+
+Example turn object:
+```json
+{
+  "turn_id": "turn_0",
+  "user_query": "What is 2+2?",
+  "steps": [...],
+  "final_answer": "4"
+}
+```
+
+Valid selectors for turn scope:
+```
+$.user_query
+$.steps[?(@.kind=='TOOL_CALL')]
+$.final_answer
+```
+
+**Run scope** (`scope: run`)
+- Evaluates the entire conversation trace
+- Evidence extraction context is the full NormalizedRun
+- Selectors can reference all turns
+
+Valid selectors for run scope:
+```
+$.turns[*].user_query
+$.turns[*].steps
+$.turns[*].final_answer
+```
+
+**Common mistake:**
+Using `$.turns[*].user_query` with `scope: turn` will cause a validation error because the `turns[]` array is not present in the turn-level context.
+
+**Quick guideline:**
+
+| Scope | Selector style |
+|-------|----------------|
+| `turn` | `$.user_query` |
+| `run` | `$.turns[*].user_query` |
+
+**Typical use cases:**
+- Turn scope: Correctness, groundedness, reasoning quality per turn
+- Run scope: Safety/PII checks, trace completeness, conversation-level metrics
+
+**Selector validation:**
+The framework validates selector patterns at config load time to prevent mismatches between rubric scope and selector paths. See `guides/RUBRIC_SELECTOR_VALIDATION.md` for detailed validation rules and examples.
+
 ## Installation
 
 Requires Python 3.11+
@@ -95,7 +203,7 @@ pip install -e .
 3. Inspect results.json and trace_eval.json
 4. Use outputs for regression testing or quality analysis
 
-## 2-Minute Runnable Example
+## Quick Start (2 Minutes)
 
 Get started immediately with a working example:
 
@@ -117,7 +225,7 @@ output/
   └── normalized_run.*.json     # Normalized trace artifact
 ```
 
-### Artifacts Explained
+**Artifacts explained:**
 
 - `results.json` → Final aggregated evaluation scores
 - `trace_eval.json` → Detailed metrics and evidence
@@ -141,6 +249,16 @@ output/
   }
 }
 ```
+
+**Example output interpretation:**
+```
+TOOL_GROUNDEDNESS: 5
+TOOL_CALL_QUALITY: 3
+TRACE_COMPLETENESS: 4
+SAFETY_PII: safe
+```
+
+Higher numeric scores indicate better performance. Categorical scores (e.g., safe/unsafe) represent classification judgments.
 
 ## Judge Configuration
 
@@ -175,7 +293,7 @@ python -m agent_eval.cli \
   --output-dir ./output
 ```
 
-Typical setups use 1-5 judges for cross-model comparison and disagreement detection. The framework runs judges in parallel and aggregates scores with disagreement signals.
+Typical setups use 1-5 judges for cross-model comparison and disagreement detection. Judge evaluations run in parallel across rubrics and judges, then aggregate scores with disagreement signals.
 
 Additional providers can be added by implementing a judge client in `agent_eval/judges/`.
 
@@ -202,9 +320,24 @@ Each judge evaluates the same extracted evidence independently. The framework th
 
 This design allows evaluation workloads to scale across multiple judges while keeping the pipeline deterministic and reproducible.
 
+### Two-Stage Aggregation
+
+**Stage 1 - Within-judge aggregation:**
+Each judge runs multiple times (default: 3 repeats). The system computes the median of these repeated runs per judge.
+
+**Stage 2 - Cross-judge aggregation:**
+The system aggregates across different judges using variance-weighted averaging of their medians.
+
+**Formulas:**
+- **Within-judge**: median of N repeated runs
+- **Cross-judge**: weighted average with weights = `sample_size / (1 + variance)`
+- **Disagreement**: scale-aware normalized standard deviation
+
+This two-stage approach measures both individual judge consistency and cross-judge agreement.
+
 ## Trace Input and Adapter
 
-The adapter is the core innovation that makes this framework work with any trace format.
+The adapter allows the framework to evaluate traces from many agent systems without requiring a specific runtime format.
 
 **Key capability:** Converts arbitrary JSON traces into a standardized schema automatically.
 
@@ -291,6 +424,21 @@ python -m agent_eval.tools.inspect_adapter_stages trace.json
 - Diagnosing segmentation issues
 - Verifying tool linking behavior
 - Understanding how a specific trace is processed
+
+## Common Issues
+
+**No evidence extracted**
+- Check rubric scope vs selector style
+- Turn scope requires selectors like `$.user_query`
+- Run scope allows selectors like `$.turns[*].user_query`
+
+**All rubric scores are neutral**
+- Evidence extraction may be empty
+- Inspect `judge_runs.jsonl` to verify extracted evidence
+
+**Unexpected metrics**
+- Run `inspect_adapter_stages` to debug trace normalization
+- Verify turn segmentation and tool linking behavior
 
 ## Evaluation Artifacts
 
@@ -471,6 +619,7 @@ agent-eval/
 - **AgentCore integration**: ARN-based extraction is still in progress.
 - **OpenTelemetry fields**: Some fields (e.g., `user_query`) may not be available in CloudWatch exports due to Insights limitations.
 - **Trace format assumptions**: While the adapter is flexible, it assumes event-based trace structure with timestamps.
+- **Rubric selector rules**: Turn-scoped rubrics evaluate a single turn object. Evidence selectors must therefore be turn-relative (e.g., `$.user_query`) rather than run-level selectors (e.g., `$.turns[*].user_query`). Using run-level selectors with `scope: turn` will return no evidence because the extraction context is narrowed to the individual turn.
 
 ## Contributing
 
@@ -489,6 +638,7 @@ pytest agent_eval/tests/component/ -v
 ---
 
 For detailed documentation on specific components, see:
+- **Rubric Selector Validation**: `guides/RUBRIC_SELECTOR_VALIDATION.md`
 - **AgentCore Integration**: `agent_eval/tools/agentcore_pipeline/README.md`
 - **Validation Results**: `guides/VALIDATION_RESULTS.md`
 - **Progress Tracking**: `guides/FIX_PROGRESS.md`

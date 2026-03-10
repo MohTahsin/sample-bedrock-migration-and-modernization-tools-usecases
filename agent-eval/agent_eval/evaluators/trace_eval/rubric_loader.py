@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional, Set
 import yaml
 
+from .selector_validation import validate_turn_scoped_selectors, SelectorValidationError
+
 
 class RubricValidationError(Exception):
     """Raised when rubric validation fails."""
@@ -423,6 +425,19 @@ class RubricLoader:
                 raise RubricValidationError(
                     f"Rubric {rubric.rubric_id} evidence_selector at index {i} must be a non-empty string"
                 )
+        
+        # Validate turn-scoped selectors don't use run-level paths
+        # This must happen after evidence_selectors validation and before scope validation
+        try:
+            validate_turn_scoped_selectors(
+                rubric_id=rubric.rubric_id,
+                scope=rubric.scope,
+                turn_selector_mode=self.turn_selector_mode,
+                evidence_selectors=rubric.evidence_selectors
+            )
+        except SelectorValidationError as e:
+            # Re-raise as RubricValidationError to maintain consistent error type
+            raise RubricValidationError(str(e)) from e
         
         if not rubric.scope:
             raise RubricValidationError(

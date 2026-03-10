@@ -48,7 +48,7 @@ class BedrockJudgeClient(JudgeClient):
     """
     
     # Model family detection patterns
-    CLAUDE_3_PATTERN = re.compile(r'anthropic\.claude-3')
+    CLAUDE_3_PATTERN = re.compile(r'(anthropic\.claude-[34]|us\.anthropic\.claude)')
     CLAUDE_LEGACY_PATTERN = re.compile(r'anthropic\.claude-[v]?2')
     TITAN_PATTERN = re.compile(r'amazon\.titan')
     MISTRAL_PATTERN = re.compile(r'mistral')

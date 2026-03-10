@@ -1,0 +1,24 @@
+judges:
+  - judge_id: claude_sonnet_4
+    provider: bedrock
+    model_id: us.anthropic.claude-sonnet-4-20250514-v1:0
+    params:
+      temperature: 0
+      max_tokens: 2048
+    timeout_seconds: 60
+
+  - judge_id: claude_opus_4
+    provider: bedrock
+    model_id: anthropic.claude-opus-4-20250514-v1:0
+    params:
+      temperature: 0
+      max_tokens: 2048
+    timeout_seconds: 60
+
+  - judge_id: nova_pro
+    provider: bedrock
+    model_id: amazon.nova-pro-v1:0
+    params:
+      temperature: 0
+      max_tokens: 2048
+    timeout_seconds: 60

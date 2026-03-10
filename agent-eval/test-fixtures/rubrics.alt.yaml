@@ -34,8 +34,36 @@ rubrics:
   evidence_budget: 10000
   scope: turn
   scope_behavior: per_turn
-- rubric_id: TOOL_CONSISTENCY
-  description: Evaluates whether tool results are used consistently in the final answer
+
+# DISABLED: TOOL_CONSISTENCY rubric removed for alternate configuration testing
+# - rubric_id: TOOL_CONSISTENCY
+#   description: Evaluates whether tool results are used consistently in the final answer
+#   weight: 1.0
+#   severity: medium
+#   enabled: true
+#   scoring_scale:
+#     type: numeric
+#     min: 1
+#     max: 5
+#   aggregation_type: median
+#   run_aggregation_policy: standard
+#   requires_llm_judge: true
+#   evaluation_instructions: 'Score 1-5 based on how consistently tool results are incorporated:
+#     5 = All tool results are accurately reflected in the final answer
+#     4 = Most tool results are used correctly with minor omissions
+#     3 = Some tool results are used but others are ignored or misrepresented
+#     2 = Few tool results are incorporated into the final answer
+#     1 = Tool results are contradicted or completely ignored
+#     '
+#   evidence_selectors:
+#   - $.steps[?(@.kind=='TOOL_RESULT')]
+#   - $.final_answer
+#   evidence_budget: 10000
+#   scope: turn
+#   scope_behavior: per_turn
+
+- rubric_id: TOOL_CALL_QUALITY_MODIFIED
+  description: Evaluates the appropriateness, correctness, and efficiency of tool call parameters and selections
   weight: 1.0
   severity: medium
   enabled: true
@@ -46,44 +74,13 @@ rubrics:
   aggregation_type: median
   run_aggregation_policy: standard
   requires_llm_judge: true
-  evaluation_instructions: 'Score 1-5 based on how consistently tool results are incorporated:
+  evaluation_instructions: 'Score 1-5 based on tool call parameter quality and tool selection:
 
-    5 = All tool results are accurately reflected in the final answer
+    5 = All parameters are correct, complete, optimally formatted, and the right tools were chosen
 
-    4 = Most tool results are used correctly with minor omissions
+    4 = Parameters are mostly correct with minor formatting issues or suboptimal tool choice
 
-    3 = Some tool results are used but others are ignored or misrepresented
-
-    2 = Few tool results are incorporated into the final answer
-
-    1 = Tool results are contradicted or completely ignored
-
-    '
-  evidence_selectors:
-  - $.steps[?(@.kind=='TOOL_RESULT')]
-  - $.final_answer
-  evidence_budget: 10000
-  scope: turn
-  scope_behavior: per_turn
-- rubric_id: TOOL_CALL_QUALITY
-  description: Evaluates the appropriateness and correctness of tool call parameters
-  weight: 1.0
-  severity: medium
-  enabled: true
-  scoring_scale:
-    type: numeric
-    min: 1
-    max: 5
-  aggregation_type: median
-  run_aggregation_policy: standard
-  requires_llm_judge: true
-  evaluation_instructions: 'Score 1-5 based on tool call parameter quality:
-
-    5 = All parameters are correct, complete, and optimally formatted
-
-    4 = Parameters are mostly correct with minor formatting issues
-
-    3 = Some parameters are correct but others are incomplete or suboptimal
+    3 = Some parameters are correct but others are incomplete, or wrong tool was used
 
     2 = Many parameters are incorrect or missing required fields
 
@@ -91,6 +88,7 @@ rubrics:
 
     '
   evidence_selectors:
+  - $.steps[?(@.kind=='TOOL_CALL')]
   - $.steps[?(@.kind=='TOOL_CALL')].attributes
   evidence_budget: 10000
   scope: turn
@@ -216,3 +214,35 @@ rubrics:
   evidence_budget: 10000
   scope: run
   scope_behavior: aggregate_all_turns
+- rubric_id: RESPONSE_EFFICIENCY
+  description: Evaluates whether the agent provides a concise and efficient response without unnecessary verbosity
+  weight: 1.0
+  severity: low
+  enabled: true
+  scoring_scale:
+    type: numeric
+    min: 1
+    max: 10
+  aggregation_type: median
+  run_aggregation_policy: standard
+  requires_llm_judge: true
+  evaluation_instructions: 'Score 1-10 based on response efficiency:
+
+    10 = Response is perfectly concise, every word adds value
+
+    8-9 = Response is efficient with minimal unnecessary content
+
+    6-7 = Response is acceptable but contains some redundancy
+
+    4-5 = Response is verbose with significant unnecessary content
+
+    2-3 = Response is highly verbose and inefficient
+
+    1 = Response is excessively verbose or repetitive
+
+    '
+  evidence_selectors:
+  - $.final_answer
+  evidence_budget: 5000
+  scope: turn
+  scope_behavior: per_turn

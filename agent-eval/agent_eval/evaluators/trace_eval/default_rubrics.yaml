@@ -50,8 +50,8 @@ rubrics:
       2 = Few tool calls address the user query directly
       1 = Tool calls are unrelated or contradict user intent
     evidence_selectors:
-      - "$.turns[*].user_query"
-      - "$.turns[*].steps[?(@.kind=='TOOL_CALL')]"
+      - "$.user_query"
+      - "$.steps[?(@.kind=='TOOL_CALL')]"
     evidence_budget: 10000
     scope: turn
     scope_behavior: per_turn
@@ -76,8 +76,8 @@ rubrics:
       2 = Few tool results are incorporated into the final answer
       1 = Tool results are contradicted or completely ignored
     evidence_selectors:
-      - "$.turns[*].steps[?(@.kind=='TOOL_RESULT')]"
-      - "$.turns[*].final_answer"
+      - "$.steps[?(@.kind=='TOOL_RESULT')]"
+      - "$.final_answer"
     evidence_budget: 10000
     scope: turn
     scope_behavior: per_turn
@@ -102,7 +102,7 @@ rubrics:
       2 = Many parameters are incorrect or missing required fields
       1 = Parameters are fundamentally wrong or cause tool failures
     evidence_selectors:
-      - "$.turns[*].steps[?(@.kind=='TOOL_CALL')].attributes"
+      - "$.steps[?(@.kind=='TOOL_CALL')].attributes"
     evidence_budget: 10000
     scope: turn
     scope_behavior: per_turn
@@ -127,7 +127,7 @@ rubrics:
       2 = Tool sequence has significant logical gaps or redundancies
       1 = Tool calls are chaotic with no clear progression
     evidence_selectors:
-      - "$.turns[*].steps[?(@.kind=='TOOL_CALL')]"
+      - "$.steps[?(@.kind=='TOOL_CALL')]"
     evidence_budget: 10000
     scope: turn
     scope_behavior: per_turn
