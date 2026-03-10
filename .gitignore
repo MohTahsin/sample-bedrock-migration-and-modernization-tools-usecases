@@ -57,6 +57,7 @@ agent-eval/test-step1-*/
 agent-eval/.smoke-test-output/
 agent-eval/.pre-push-test-*/
 agent-eval/output_*/
+agent-eval/test-weird-output/
 agent-eval/analyze_*.py
 agent-eval/compare_*.py
 agent-eval/inspect_*.py
