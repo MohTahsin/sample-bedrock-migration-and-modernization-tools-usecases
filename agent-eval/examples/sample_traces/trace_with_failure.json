@@ -1,0 +1,99 @@
+{
+  "events": [
+    {
+      "timestamp": "2024-01-15T10:30:00.000Z",
+      "event_type": "user_message",
+      "role": "user",
+      "text": "Get the stock price for AAPL",
+      "session_id": "session-failure-123",
+      "conversation_id": "conv-failure-001",
+      "trace_id": "trace-failure-001",
+      "message_id": "msg-user-001",
+      "span_id": "span-001"
+    },
+    {
+      "timestamp": "2024-01-15T10:30:00.100Z",
+      "event_type": "model_invoke",
+      "span_kind": "CLIENT",
+      "model_id": "claude-3-sonnet",
+      "session_id": "session-failure-123",
+      "conversation_id": "conv-failure-001",
+      "trace_id": "trace-failure-001",
+      "message_id": "msg-model-001",
+      "span_id": "span-002",
+      "parent_span_id": "span-001"
+    },
+    {
+      "timestamp": "2024-01-15T10:30:00.200Z",
+      "event_type": "tool_invocation",
+      "tool_name": "stock_api",
+      "tool_run_id": "tool-run-fail-001",
+      "tool_input": "{\"symbol\": \"AAPL\"}",
+      "session_id": "session-failure-123",
+      "conversation_id": "conv-failure-001",
+      "trace_id": "trace-failure-001",
+      "span_id": "span-003",
+      "parent_span_id": "span-002",
+      "attributes": {
+        "provider": "stock_service",
+        "api_endpoint": "https://api.stocks.com/v1/quote",
+        "tool_latency_ms": 300.0
+      }
+    },
+    {
+      "timestamp": "2024-01-15T10:30:00.500Z",
+      "event_type": "tool_result",
+      "tool_name": "stock_api",
+      "tool_run_id": "tool-run-fail-001",
+      "tool_result": "{\"error\": \"API rate limit exceeded\", \"code\": 429}",
+      "status": "error",
+      "session_id": "session-failure-123",
+      "conversation_id": "conv-failure-001",
+      "trace_id": "trace-failure-001",
+      "span_id": "span-004",
+      "parent_span_id": "span-003",
+      "attributes": {
+        "status_code": 429,
+        "provider": "stock_service",
+        "error_type": "rate_limit",
+        "retry_after": 60,
+        "latency_ms": 300.0
+      }
+    },
+    {
+      "timestamp": "2024-01-15T10:30:00.600Z",
+      "event_type": "llm_output_chunk",
+      "role": "assistant",
+      "text": "I apologize, but I'm unable to retrieve the stock price at the moment due to API rate limiting. Please try again in a minute.",
+      "session_id": "session-failure-123",
+      "conversation_id": "conv-failure-001",
+      "trace_id": "trace-failure-001",
+      "message_id": "msg-assistant-001",
+      "span_id": "span-005",
+      "parent_span_id": "span-002"
+    },
+    {
+      "timestamp": "2024-01-15T10:30:00.650Z",
+      "event_type": "turn_end",
+      "finish_reason": "error",
+      "session_id": "session-failure-123",
+      "conversation_id": "conv-failure-001",
+      "trace_id": "trace-failure-001",
+      "span_id": "span-006",
+      "attributes": {
+        "turn_latency_ms": 650.0,
+        "final_answer": "I apologize, but I'm unable to retrieve the stock price at the moment due to API rate limiting. Please try again in a minute.",
+        "tools_used": ["stock_api"],
+        "error_occurred": true
+      }
+    }
+  ],
+  "run_id": "run-with-failure-001",
+  "final_answer": "I apologize, but I'm unable to retrieve the stock price at the moment due to API rate limiting. Please try again in a minute.",
+  "user_query": "Get the stock price for AAPL",
+  "total_latency_ms": 650.0,
+  "attributes": {
+    "conversation_window_start": "2024-01-15T10:30:00.000Z",
+    "conversation_window_end": "2024-01-15T10:30:00.650Z"
+  }
+}

@@ -1,0 +1,166 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Trace Evaluation Output",
+  "description": "Schema for trace_eval.json output file",
+  "type": "object",
+  "required": ["format_version", "run_id", "deterministic_metrics", "rubric_results", "judge_summary"],
+  "additionalProperties": false,
+  "properties": {
+    "format_version": {
+      "type": "string",
+      "description": "Output format version (e.g., 1.0.0)"
+    },
+    "run_id": {
+      "type": "string",
+      "description": "Run identifier from NormalizedRun"
+    },
+    "deterministic_metrics": {
+      "type": "object",
+      "description": "Metrics computed directly from NormalizedRun without LLM",
+      "required": ["turn_count", "step_count", "tool_call_count", "tool_result_count", "orphan_result_count", "tool_success_rate", "missing_timestamp_rate", "stitched_trace_suspect", "single_turn_fallback_used"],
+      "properties": {
+        "turn_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "step_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tool_call_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tool_result_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "orphan_result_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tool_success_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "missing_timestamp_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "stitched_trace_suspect": {
+          "type": "boolean"
+        },
+        "single_turn_fallback_used": {
+          "type": "boolean"
+        },
+        "latency_p50": {
+          "type": ["number", "null"],
+          "minimum": 0
+        },
+        "latency_p95": {
+          "type": ["number", "null"],
+          "minimum": 0
+        },
+        "confidence_penalty_summary": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "rubric_results": {
+      "type": "array",
+      "description": "Results for each rubric evaluation",
+      "items": {
+        "type": "object",
+        "required": ["rubric_id", "scope"],
+        "properties": {
+          "rubric_id": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string",
+            "enum": ["turn", "run"]
+          },
+          "turn_id": {
+            "type": ["string", "null"],
+            "description": "Turn identifier for turn-scoped rubrics"
+          },
+          "within_judge_results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "judge_id": {
+                  "type": "string"
+                },
+                "majority_vote": {
+                  "type": ["string", "null"]
+                },
+                "median": {
+                  "type": ["number", "null"]
+                },
+                "mean": {
+                  "type": ["number", "null"]
+                },
+                "variance": {
+                  "type": "number"
+                },
+                "sample_size": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "cross_judge_result": {
+            "type": "object",
+            "properties": {
+              "weighted_vote": {
+                "type": ["string", "null"]
+              },
+              "weighted_average": {
+                "type": ["number", "null"]
+              },
+              "disagreement_signal": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "high_risk_flag": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
+    },
+    "judge_summary": {
+      "type": "object",
+      "description": "Summary of judge execution statistics",
+      "properties": {
+        "total_jobs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "successful_jobs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed_jobs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "judge_count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,181 @@
+{
+  "events": [
+    {
+      "event_id": "evt-dupe-001",
+      "timestamp": "2024-01-15T10:30:00.000Z",
+      "timestamp_ms": 1705315800000,
+      "event_type": "user_message",
+      "role": "user",
+      "text": "Check the weather in New York",
+      "session_id": "session-dupe-123",
+      "conversation_id": "conv-dupe-001",
+      "trace_id": "trace-dupe-001",
+      "request_id": "req-dupe-001",
+      "turn_id": "turn-dupe-001",
+      "message_id": "msg-dupe-user-001",
+      "span_id": "span-001",
+      "sequence": 1
+    },
+    {
+      "event_id": "evt-dupe-002",
+      "timestamp": "2024-01-15T10:30:00.100Z",
+      "timestamp_ms": 1705315800100,
+      "event_type": "model_invoke",
+      "model_id": "claude-3-sonnet",
+      "session_id": "session-dupe-123",
+      "conversation_id": "conv-dupe-001",
+      "trace_id": "trace-dupe-001",
+      "request_id": "req-dupe-001",
+      "turn_id": "turn-dupe-001",
+      "message_id": "msg-dupe-model-001",
+      "model_call_id": "model-call-dupe-001",
+      "span_id": "span-002",
+      "parent_span_id": "span-001",
+      "sequence": 2
+    },
+    {
+      "event_id": "evt-dupe-003",
+      "timestamp": "2024-01-15T10:30:00.200Z",
+      "timestamp_ms": 1705315800200,
+      "event_type": "tool_invocation",
+      "tool_name": "weather_api",
+      "tool_run_id": "tool-run-dupe-001",
+      "tool_input": "{\"location\": \"New York\", \"units\": \"fahrenheit\"}",
+      "session_id": "session-dupe-123",
+      "conversation_id": "conv-dupe-001",
+      "trace_id": "trace-dupe-001",
+      "request_id": "req-dupe-001",
+      "turn_id": "turn-dupe-001",
+      "span_id": "span-003",
+      "parent_span_id": "span-002",
+      "sequence": 3,
+      "attributes": {
+        "note": "First tool call",
+        "provider": "weather_service",
+        "tool_latency_ms": 300.0
+      }
+    },
+    {
+      "event_id": "evt-dupe-004",
+      "timestamp": "2024-01-15T10:30:00.250Z",
+      "timestamp_ms": 1705315800250,
+      "event_type": "tool_invocation",
+      "tool_name": "weather_api",
+      "tool_run_id": "tool-run-dupe-001",
+      "tool_input": "{\"location\": \"New York\", \"units\": \"fahrenheit\"}",
+      "session_id": "session-dupe-123",
+      "conversation_id": "conv-dupe-001",
+      "trace_id": "trace-dupe-001",
+      "request_id": "req-dupe-001",
+      "turn_id": "turn-dupe-001",
+      "span_id": "span-003-dup",
+      "parent_span_id": "span-002",
+      "sequence": 4,
+      "attributes": {
+        "note": "Duplicate tool call within 2 second window - should be deduplicated",
+        "extra_field": "This duplicate has an extra field",
+        "provider": "weather_service",
+        "tool_latency_ms": 300.0,
+        "cache_hit": true
+      }
+    },
+    {
+      "event_id": "evt-dupe-005",
+      "timestamp": "2024-01-15T10:30:00.500Z",
+      "timestamp_ms": 1705315800500,
+      "event_type": "tool_result",
+      "tool_name": "weather_api",
+      "tool_run_id": "tool-run-dupe-001",
+      "tool_result": "{\"temperature\": 45, \"condition\": \"cloudy\", \"humidity\": 70}",
+      "status": "success",
+      "session_id": "session-dupe-123",
+      "conversation_id": "conv-dupe-001",
+      "trace_id": "trace-dupe-001",
+      "request_id": "req-dupe-001",
+      "turn_id": "turn-dupe-001",
+      "span_id": "span-004",
+      "parent_span_id": "span-003",
+      "sequence": 5,
+      "attributes": {
+        "status_code": 200,
+        "provider": "weather_service",
+        "latency_ms": 300.0
+      }
+    },
+    {
+      "event_id": "evt-dupe-006",
+      "timestamp": "2024-01-15T10:30:02.500Z",
+      "timestamp_ms": 1705315802500,
+      "event_type": "tool_invocation",
+      "tool_name": "weather_api",
+      "tool_run_id": "tool-run-separate-002",
+      "tool_input": "{\"location\": \"New York\", \"units\": \"fahrenheit\"}",
+      "session_id": "session-dupe-123",
+      "conversation_id": "conv-dupe-001",
+      "trace_id": "trace-dupe-001",
+      "request_id": "req-dupe-001",
+      "turn_id": "turn-dupe-001",
+      "span_id": "span-005",
+      "parent_span_id": "span-002",
+      "sequence": 6,
+      "attributes": {
+        "note": "This tool call is outside the 2 second deduplication window - should NOT be deduplicated",
+        "provider": "weather_service",
+        "tool_latency_ms": 200.0
+      }
+    },
+    {
+      "event_id": "evt-dupe-007",
+      "timestamp": "2024-01-15T10:30:02.700Z",
+      "timestamp_ms": 1705315802700,
+      "event_type": "tool_result",
+      "tool_name": "weather_api",
+      "tool_run_id": "tool-run-separate-002",
+      "tool_result": "{\"temperature\": 45, \"condition\": \"cloudy\", \"humidity\": 70}",
+      "status": "success",
+      "session_id": "session-dupe-123",
+      "conversation_id": "conv-dupe-001",
+      "trace_id": "trace-dupe-001",
+      "request_id": "req-dupe-001",
+      "turn_id": "turn-dupe-001",
+      "span_id": "span-006",
+      "parent_span_id": "span-005",
+      "sequence": 7,
+      "attributes": {
+        "status_code": 200,
+        "provider": "weather_service",
+        "latency_ms": 200.0
+      }
+    },
+    {
+      "event_id": "evt-dupe-008",
+      "timestamp": "2024-01-15T10:30:02.800Z",
+      "timestamp_ms": 1705315802800,
+      "event_type": "llm_output_chunk",
+      "role": "assistant",
+      "text": "The current weather in New York is cloudy with a temperature of 45°F and 70% humidity.",
+      "session_id": "session-dupe-123",
+      "conversation_id": "conv-dupe-001",
+      "trace_id": "trace-dupe-001",
+      "request_id": "req-dupe-001",
+      "turn_id": "turn-dupe-001",
+      "message_id": "msg-dupe-assistant-001",
+      "model_call_id": "model-call-dupe-001",
+      "span_id": "span-007",
+      "parent_span_id": "span-002",
+      "sequence": 8
+    }
+  ],
+  "run_id": "run-duplicate-001",
+  "final_answer": "The current weather in New York is cloudy with a temperature of 45°F and 70% humidity.",
+  "user_query": "Check the weather in New York",
+  "attributes": {
+    "conversation_window_start": "2024-01-15T10:30:00.000Z",
+    "conversation_window_end": "2024-01-15T10:30:02.800Z",
+    "deduplication_diagnostics": {
+      "duplicate_tool_calls_detected": 1,
+      "deduplication_window_seconds": 2,
+      "note": "event_id enables deterministic deduplication; sequence provides tie-breaking"
+    }
+  }
+}

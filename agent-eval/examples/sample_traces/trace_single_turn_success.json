@@ -1,0 +1,98 @@
+{
+  "events": [
+    {
+      "timestamp": "2024-01-15T10:30:00.000Z",
+      "event_type": "user_message",
+      "role": "user",
+      "text": "What is the weather in Seattle?",
+      "session_id": "session-abc-123",
+      "conversation_id": "conv-single-001",
+      "trace_id": "trace-xyz-789",
+      "message_id": "msg-user-001",
+      "span_id": "span-001"
+    },
+    {
+      "timestamp": "2024-01-15T10:30:00.100Z",
+      "event_type": "model_invoke",
+      "span_kind": "CLIENT",
+      "model_id": "claude-3-sonnet",
+      "session_id": "session-abc-123",
+      "conversation_id": "conv-single-001",
+      "trace_id": "trace-xyz-789",
+      "message_id": "msg-model-001",
+      "span_id": "span-002",
+      "parent_span_id": "span-001"
+    },
+    {
+      "timestamp": "2024-01-15T10:30:00.250Z",
+      "event_type": "tool_invocation",
+      "tool_name": "weather_api",
+      "tool_run_id": "tool-run-456",
+      "tool_input": "{\"location\": \"Seattle\", \"units\": \"fahrenheit\"}",
+      "session_id": "session-abc-123",
+      "conversation_id": "conv-single-001",
+      "trace_id": "trace-xyz-789",
+      "span_id": "span-003",
+      "parent_span_id": "span-002",
+      "attributes": {
+        "tool_type": "api_call",
+        "provider": "weather_service",
+        "endpoint": "https://api.weather.com/v1/current",
+        "tool_latency_ms": 200.0
+      }
+    },
+    {
+      "timestamp": "2024-01-15T10:30:00.450Z",
+      "event_type": "tool_result",
+      "tool_name": "weather_api",
+      "tool_run_id": "tool-run-456",
+      "tool_result": "{\"temperature\": 55, \"condition\": \"partly cloudy\", \"humidity\": 65}",
+      "status": "success",
+      "session_id": "session-abc-123",
+      "conversation_id": "conv-single-001",
+      "trace_id": "trace-xyz-789",
+      "span_id": "span-004",
+      "parent_span_id": "span-003",
+      "attributes": {
+        "status_code": 200,
+        "provider": "weather_service",
+        "latency_ms": 200.0,
+        "cache_hit": false
+      }
+    },
+    {
+      "timestamp": "2024-01-15T10:30:00.500Z",
+      "event_type": "llm_output_chunk",
+      "role": "assistant",
+      "text": "The current weather in Seattle is partly cloudy with a temperature of 55°F and 65% humidity.",
+      "session_id": "session-abc-123",
+      "conversation_id": "conv-single-001",
+      "trace_id": "trace-xyz-789",
+      "message_id": "msg-assistant-001",
+      "span_id": "span-005",
+      "parent_span_id": "span-002"
+    },
+    {
+      "timestamp": "2024-01-15T10:30:00.550Z",
+      "event_type": "turn_end",
+      "finish_reason": "end_turn",
+      "session_id": "session-abc-123",
+      "conversation_id": "conv-single-001",
+      "trace_id": "trace-xyz-789",
+      "span_id": "span-006",
+      "attributes": {
+        "turn_latency_ms": 550.0,
+        "final_answer": "The current weather in Seattle is partly cloudy with a temperature of 55°F and 65% humidity.",
+        "tools_used": ["weather_api"]
+      }
+    }
+  ],
+  "run_id": "run-single-turn-001",
+  "final_answer": "The current weather in Seattle is partly cloudy with a temperature of 55°F and 65% humidity.",
+  "user_query": "What is the weather in Seattle?",
+  "total_latency_ms": 550.0,
+  "attributes": {
+    "conversation_window_start": "2024-01-15T10:30:00.000Z",
+    "conversation_window_end": "2024-01-15T10:30:00.550Z"
+  }
+}

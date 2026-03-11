@@ -1,0 +1,8 @@
+{
+  "expected_exit_code": 0,
+  "min_turns": 1,
+  "max_turns": 1,
+  "expected_tool_calls": 0,
+  "min_confidence": 0.5,
+  "description": "Clean minimal trace with single turn"
+}

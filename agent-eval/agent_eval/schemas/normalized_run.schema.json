@@ -1,0 +1,349 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Normalized Agent Run",
+  "description": "Standardized schema for agent execution traces with turn-aware structure",
+  "type": "object",
+  "required": ["run_id", "metadata", "adapter_stats", "turns"],
+  "additionalProperties": false,
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "description": "Unique identifier for this agent execution"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Run-level metadata",
+      "required": ["adapter_version", "processed_at"],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "type": "string",
+          "description": "Source system or adapter that generated this trace"
+        },
+        "adapter_version": {
+          "type": "string",
+          "description": "Version of the adapter used for normalization"
+        },
+        "processed_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp when trace was processed"
+        },
+        "segmentation_strategy_used": {
+          "type": "string",
+          "description": "Strategy used for turn segmentation (TURN_ID, SESSION_PLUS_REQUEST, SESSION_PLUS_TRACE_THEN_ANCHOR_SPLIT, SINGLE_TURN)"
+        },
+        "run_confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Overall confidence score for the run (average of turn confidences)"
+        },
+        "mapping_coverage": {
+          "type": "object",
+          "description": "Field mapping coverage statistics",
+          "required": ["ids_coverage", "time_coverage", "tool_coverage", "text_coverage", "overall_mapping_coverage"],
+          "additionalProperties": false,
+          "properties": {
+            "ids_coverage": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "time_coverage": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "tool_coverage": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "text_coverage": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "overall_mapping_coverage": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        }
+      }
+    },
+    "adapter_stats": {
+      "type": "object",
+      "description": "Adapter processing statistics and confidence metrics",
+      "required": ["total_events_processed", "turn_count", "confidence_penalties", "segmentation_strategy", "mapping_coverage", "orphan_tool_results"],
+      "additionalProperties": false,
+      "properties": {
+        "total_events_processed": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total number of events processed from source"
+        },
+        "events_with_valid_timestamps": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of events with parseable timestamps that passed trust validation (ts_trusted=true)"
+        },
+        "events_with_missing_data": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of events with missing optional fields"
+        },
+        "dropped_events_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of events that couldn't be processed"
+        },
+        "invalid_events_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of events that failed validation"
+        },
+        "turn_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total number of turns segmented"
+        },
+        "events_by_kind": {
+          "type": "object",
+          "description": "Histogram of events by kind",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "confidence_penalties": {
+          "type": "array",
+          "description": "List of confidence penalties applied during processing",
+          "items": {
+            "type": "object",
+            "required": ["reason", "penalty", "location"],
+            "additionalProperties": false,
+            "properties": {
+              "reason": {
+                "type": "string",
+                "description": "Reason for the penalty (e.g., missing_timestamp, orphan_tool_result)"
+              },
+              "penalty": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Penalty value subtracted from confidence score"
+              },
+              "location": {
+                "type": "string",
+                "description": "Location where penalty was applied (e.g., turn_id, run-level)"
+              }
+            }
+          }
+        },
+        "raw_path": {
+          "type": ["string", "null"],
+          "description": "Which event_path matched in the source JSON for debuggability"
+        },
+        "canonical_sources": {
+          "type": "object",
+          "description": "Summary of which field aliases matched for each normalized field",
+          "additionalProperties": {
+            "type": ["string", "array", "object", "null"]
+          }
+        },
+        "orphan_tool_results": {
+          "type": "array",
+          "description": "Tool results without corresponding tool calls",
+          "items": {
+            "type": "object",
+            "required": ["location"],
+            "additionalProperties": false,
+            "properties": {
+              "tool_name": {
+                "type": "string"
+              },
+              "tool_run_id": {
+                "type": ["string", "null"]
+              },
+              "location": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "segmentation_strategy": {
+          "type": "string",
+          "description": "Strategy used for turn segmentation (TURN_ID, SESSION_PLUS_REQUEST, SESSION_PLUS_TRACE_THEN_ANCHOR_SPLIT, SINGLE_TURN)"
+        },
+        "mapping_coverage": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Overall field mapping coverage score"
+        },
+        "segmentation_strategy_reason": {
+          "type": "string",
+          "description": "Explanation of why the segmentation strategy was selected"
+        },
+        "warnings": {
+          "type": "array",
+          "description": "List of warnings encountered during processing",
+          "items": {
+            "type": "string"
+          }
+        },
+        "missing_fields_summary": {
+          "type": "object",
+          "description": "Top 10 missing fields with aliases that were attempted",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "turns": {
+      "type": "array",
+      "minItems": 0,
+      "description": "Array of conversation turns",
+      "items": {
+        "type": "object",
+        "required": ["turn_id", "user_query", "final_answer", "steps", "confidence"],
+        "additionalProperties": false,
+        "properties": {
+          "turn_id": {
+            "type": "string",
+            "description": "Unique identifier for this turn"
+          },
+          "request_id": {
+            "type": ["string", "null"],
+            "description": "Optional request identifier from source system"
+          },
+          "timestamp": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "ISO 8601 timestamp of turn start"
+          },
+          "user_query": {
+            "type": ["string", "null"],
+            "description": "The user query for this turn (null if missing from source)"
+          },
+          "final_answer": {
+            "type": ["string", "null"],
+            "description": "The final response for this turn (null if missing from source)"
+          },
+          "finish_reason": {
+            "type": ["string", "null"],
+            "description": "Reason for completion (e.g., stop, length, tool_use)"
+          },
+          "steps": {
+            "type": "array",
+            "minItems": 0,
+            "description": "Ordered list of execution steps within this turn",
+            "items": {
+              "type": "object",
+              "required": ["name", "status"],
+              "additionalProperties": false,
+              "properties": {
+                "type": {
+                  "type": ["string", "null"],
+                  "description": "Step type (e.g., 'tool_call', 'sub_agent_call', 'message')"
+                },
+                "kind": {
+                  "type": ["string", "null"],
+                  "description": "Step kind for finer classification (USER_INPUT, MODEL_INVOKE, TOOL_CALL, TOOL_RESULT, LLM_OUTPUT_CHUNK, PROMPT_CONTEXT, EVENT)"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "Human-readable step name"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["success", "error", "unknown", "skipped"],
+                  "description": "Step execution outcome"
+                },
+                "start_ts": {
+                  "type": ["string", "null"],
+                  "format": "date-time",
+                  "description": "Step start timestamp in ISO 8601 format"
+                },
+                "end_ts": {
+                  "type": ["string", "null"],
+                  "format": "date-time",
+                  "description": "Step end timestamp in ISO 8601 format"
+                },
+                "latency_ms": {
+                  "type": ["number", "null"],
+                  "minimum": 0,
+                  "description": "Step execution time in milliseconds"
+                },
+                "span_id": {
+                  "type": ["string", "null"],
+                  "description": "Tracing span identifier for distributed tracing"
+                },
+                "parent_span_id": {
+                  "type": ["string", "null"],
+                  "description": "Parent span identifier for nested operations"
+                },
+                "tool_run_id": {
+                  "type": ["string", "null"],
+                  "description": "Tool execution identifier for linking tool calls with results"
+                },
+                "tool_name": {
+                  "type": ["string", "null"],
+                  "description": "Tool name for TOOL_CALL and TOOL_RESULT steps"
+                },
+                "event_order": {
+                  "type": ["integer", "null"],
+                  "minimum": 0,
+                  "description": "Sequential integer for deterministic ordering of events"
+                },
+                "source_index": {
+                  "type": ["integer", "null"],
+                  "minimum": 0,
+                  "description": "Original position in source data for events with invalid timestamps"
+                },
+                "attributes": {
+                  "type": ["object", "null"],
+                  "description": "Additional structured attributes from source event",
+                  "additionalProperties": true
+                },
+                "raw": {
+                  "type": ["object", "null"],
+                  "description": "Raw source event data for debugging (up to max_bytes limit)",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "normalized_latency_ms": {
+            "type": ["number", "null"],
+            "minimum": 0,
+            "description": "Latency calculated from trusted timestamps (start to end of turn)"
+          },
+          "runtime_reported_latency_ms": {
+            "type": ["number", "null"],
+            "minimum": 0,
+            "description": "Latency reported by source system if available"
+          },
+          "total_latency_ms": {
+            "type": ["number", "null"],
+            "minimum": 0,
+            "description": "Total execution time (prefers normalized_latency_ms, falls back to runtime_reported_latency_ms)"
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Confidence score for this turn's data quality (1.0 = perfect, 0.0 = no confidence)"
+          }
+        }
+      }
+    }
+  }
+}

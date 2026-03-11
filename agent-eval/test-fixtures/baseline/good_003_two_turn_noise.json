@@ -1,0 +1,60 @@
+{
+  "session_id": "sess-good-003",
+  "trace_id": "trace-good-003",
+  "events": [
+    {
+      "timestamp": "2026-03-09T10:00:00Z",
+      "type": "user_message",
+      "turn_id": "turn-1",
+      "content": "Who wrote Hamlet?"
+    },
+    {
+      "timestamp": "2026-03-09T10:00:01Z",
+      "type": "debug.log",
+      "turn_id": "turn-1",
+      "level": "INFO",
+      "message": "Processing user query",
+      "internal_trace_id": "dbg-001"
+    },
+    {
+      "timestamp": "2026-03-09T10:00:02.800Z",
+      "type": "model_output",
+      "turn_id": "turn-1",
+      "content": "William Shakespeare wrote Hamlet."
+    },
+    {
+      "timestamp": "2026-03-09T10:00:10Z",
+      "type": "user_message",
+      "turn_id": "turn-2",
+      "content": "When was it first performed?"
+    },
+    {
+      "timestamp": "2026-03-09T10:00:11Z",
+      "type": "tool_call",
+      "turn_id": "turn-2",
+      "tool_name": "search_tool",
+      "tool_run_id": "tool-002",
+      "tool_arguments": "{\"query\":\"Hamlet first performance date\"}"
+    },
+    {
+      "timestamp": "2026-03-09T10:00:12Z",
+      "type": "internal.metric",
+      "metric_name": "tool_latency_ms",
+      "value": 1000,
+      "tags": ["search", "production"]
+    },
+    {
+      "timestamp": "2026-03-09T10:00:14Z",
+      "type": "tool_result",
+      "turn_id": "turn-2",
+      "tool_run_id": "tool-002",
+      "tool_result": "{\"info\":\"First performed around 1600\"}"
+    },
+    {
+      "timestamp": "2026-03-09T10:00:17.200Z",
+      "type": "model_output",
+      "turn_id": "turn-2",
+      "content": "Hamlet was first performed around 1600."
+    }
+  ]
+}

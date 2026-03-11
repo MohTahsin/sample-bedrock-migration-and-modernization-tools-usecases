@@ -1,0 +1,9 @@
+{
+  "trace_id": "bad-001",
+  "events": [
+    {
+      "timestamp": "invalid-timestamp",
+      "content": "Missing required fields"
+    }
+  ]
+}

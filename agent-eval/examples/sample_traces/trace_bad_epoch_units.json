@@ -1,0 +1,137 @@
+{
+  "events": [
+    {
+      "event_id": "evt-epoch-001",
+      "timestamp": 1705315800,
+      "event_type": "user_message",
+      "role": "user",
+      "text": "What time is it?",
+      "session_id": "session-epoch-001",
+      "conversation_id": "conv-epoch-001",
+      "trace_id": "trace-epoch-001",
+      "request_id": "req-epoch-001",
+      "turn_id": "turn-epoch-001",
+      "message_id": "msg-epoch-user-001",
+      "span_id": "span-001",
+      "sequence": 1,
+      "attributes": {
+        "note": "Ambiguous epoch timestamp - could be seconds (2024-01-15) or milliseconds (1970-01-20). Magnitude inference should detect this is seconds."
+      }
+    },
+    {
+      "event_id": "evt-epoch-002",
+      "timestamp": 1705315800100,
+      "event_type": "model_invoke",
+      "model_id": "claude-3-sonnet",
+      "session_id": "session-epoch-001",
+      "conversation_id": "conv-epoch-001",
+      "trace_id": "trace-epoch-001",
+      "request_id": "req-epoch-001",
+      "turn_id": "turn-epoch-001",
+      "message_id": "msg-epoch-model-001",
+      "model_call_id": "model-call-epoch-001",
+      "span_id": "span-002",
+      "parent_span_id": "span-001",
+      "sequence": 2,
+      "attributes": {
+        "note": "Epoch in milliseconds - magnitude inference should detect this"
+      }
+    },
+    {
+      "event_id": "evt-epoch-003",
+      "timestamp": 1705315800200000000,
+      "event_type": "tool_invocation",
+      "tool_name": "time_api",
+      "tool_run_id": "tool-run-001",
+      "tool_input": "{\"timezone\": \"UTC\"}",
+      "session_id": "session-epoch-001",
+      "conversation_id": "conv-epoch-001",
+      "trace_id": "trace-epoch-001",
+      "request_id": "req-epoch-001",
+      "turn_id": "turn-epoch-001",
+      "span_id": "span-003",
+      "parent_span_id": "span-002",
+      "sequence": 3,
+      "attributes": {
+        "note": "Epoch in nanoseconds - magnitude inference should detect this",
+        "provider": "time_service",
+        "tool_latency_ms": 200.0
+      }
+    },
+    {
+      "event_id": "evt-epoch-004",
+      "timestamp": 1705315800400,
+      "event_type": "tool_result",
+      "tool_name": "time_api",
+      "tool_run_id": "tool-run-001",
+      "tool_result": "{\"time\": \"2024-01-15T10:30:00Z\", \"timezone\": \"UTC\"}",
+      "status": "success",
+      "session_id": "session-epoch-001",
+      "conversation_id": "conv-epoch-001",
+      "trace_id": "trace-epoch-001",
+      "request_id": "req-epoch-001",
+      "turn_id": "turn-epoch-001",
+      "span_id": "span-004",
+      "parent_span_id": "span-003",
+      "sequence": 4,
+      "attributes": {
+        "note": "Epoch in milliseconds",
+        "status_code": 200,
+        "provider": "time_service",
+        "latency_ms": 200.0
+      }
+    },
+    {
+      "event_id": "evt-epoch-005",
+      "timestamp": 9999999999,
+      "event_type": "llm_output_chunk",
+      "role": "assistant",
+      "text": "The current time is 10:30:00 UTC on January 15, 2024.",
+      "session_id": "session-epoch-001",
+      "conversation_id": "conv-epoch-001",
+      "trace_id": "trace-epoch-001",
+      "request_id": "req-epoch-001",
+      "turn_id": "turn-epoch-001",
+      "message_id": "msg-epoch-assistant-001",
+      "model_call_id": "model-call-epoch-001",
+      "span_id": "span-005",
+      "parent_span_id": "span-002",
+      "sequence": 5,
+      "attributes": {
+        "note": "Edge case: 9999999999 seconds = Nov 20, 2286 (valid but far future). Should fail year bounds check (2000-2100) and be rejected or flagged."
+      }
+    },
+    {
+      "event_id": "evt-epoch-006",
+      "timestamp": 946684800,
+      "event_type": "llm_output_chunk",
+      "role": "assistant",
+      "text": " Have a great day!",
+      "session_id": "session-epoch-001",
+      "conversation_id": "conv-epoch-001",
+      "trace_id": "trace-epoch-001",
+      "request_id": "req-epoch-001",
+      "turn_id": "turn-epoch-001",
+      "message_id": "msg-epoch-assistant-002",
+      "model_call_id": "model-call-epoch-001",
+      "span_id": "span-006",
+      "parent_span_id": "span-002",
+      "sequence": 6,
+      "attributes": {
+        "note": "Edge case: 946684800 seconds = Jan 1, 2000 00:00:00 UTC (exactly at min_reasonable_year boundary)"
+      }
+    }
+  ],
+  "run_id": "run-bad-epoch-001",
+  "final_answer": "The current time is 10:30:00 UTC on January 15, 2024. Have a great day!",
+  "user_query": "What time is it?",
+  "attributes": {
+    "conversation_window_start": "2024-01-15T10:30:00.000Z",
+    "conversation_window_end": "2024-01-15T10:30:00.600Z",
+    "epoch_diagnostics": {
+      "epoch_formats_detected": ["seconds", "milliseconds", "nanoseconds"],
+      "year_bounds_violations": 1,
+      "note": "Magnitude inference required for ambiguous epoch values; sequence provides ordering fallback"
+    }
+  }
+}

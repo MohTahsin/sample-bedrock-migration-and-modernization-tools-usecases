@@ -1,0 +1,455 @@
+# adapter_config.yaml (v6 - production-ready + explicit implementation contracts)
+version: 1
+adapter_name: generic-json-adapter
+
+# ----------------------------
+# Stage A — Normalize (field mapping + parsing)
+# ----------------------------
+normalize:
+  event_paths:
+    - "events"
+    - "trace.events"
+    - "data.events"
+    - "spans"
+    - "resourceSpans.*.scopeSpans.*.spans"
+    - "logEvents"
+    - "records"
+    - "items"
+
+  field_aliases:
+    # ---- timestamps ----
+    timestamp:
+      - "timestamp"
+      - "ts"
+      - "time"
+      - "start_time"
+      - "startTime"
+      - "observedTimestamp"
+      - "span.start_time"
+      - "span.startTime"
+      - "attributes.timestamp"
+      - "attributes.start_time"
+      - "attributes.startTime"
+      - "startTimeUnixNano"     # OTEL (epoch ns)
+
+    end_timestamp:
+      - "end_time"
+      - "endTime"
+      - "span.end_time"
+      - "span.endTime"
+      - "attributes.end_time"
+      - "attributes.endTime"
+      - "endTimeUnixNano"       # OTEL (epoch ns)
+
+    # ---- identifiers ----
+    session_id:
+      - "session_id"
+      - "sessionId"
+      - "conversation_id"
+      - "conversationId"
+      - "attributes.session_id"
+      - "attributes.sessionId"
+      - "resource.attributes.session_id"
+      - "resource.attributes.sessionId"
+
+    trace_id:
+      - "trace_id"
+      - "traceId"
+      - "trace.id"
+      - "traceIdHex"
+      - "trace.trace_id"
+      - "context.trace_id"
+      - "context.traceId"
+      - "attributes.trace_id"
+      - "attributes.traceId"
+
+    span_id:
+      - "span_id"
+      - "spanId"
+      - "id"
+      - "span.id"
+      - "attributes.span_id"
+      - "attributes.spanId"
+
+    parent_span_id:
+      - "parent_span_id"
+      - "parentSpanId"
+      - "parent.id"
+      - "span.parent_id"
+      - "span.parentId"
+      - "attributes.parent_span_id"
+      - "attributes.parentSpanId"
+
+    request_id:
+      - "request_id"
+      - "requestId"
+      - "invocation_id"
+      - "invocationId"
+      - "attributes.request_id"
+      - "attributes.requestId"
+      - "attributes.invocation_id"
+      - "attributes.invocationId"
+
+    turn_id:
+      - "turn_id"
+      - "turnId"
+      - "attributes.turn_id"
+      - "attributes.turnId"
+
+    # ---- event typing ----
+    event_type:
+      - "event_type"
+      - "eventType"
+      - "type"
+      - "kind"
+      - "attributes.event_type"
+      - "attributes.eventType"
+      - "attributes.type"
+      - "attributes.kind"
+
+    operation:
+      - "name"
+      - "op"
+      - "span.name"
+      - "span.op"
+      - "attributes.name"
+      - "attributes.op"
+      - "attributes.operation"
+      - "attributes.span.name"
+
+    # ---- tool fields ----
+    tool_name:
+      - "tool_name"
+      - "toolName"
+      - "function.name"
+      - "functionName"
+      - "attributes.tool_name"
+      - "attributes.toolName"
+      - "attributes.tool.name"
+      - "attributes.function.name"
+
+    tool_run_id:
+      - "tool_run_id"
+      - "toolUseId"
+      - "tool_use_id"
+      - "toolCallId"
+      - "tool_call_id"
+      - "call_id"
+      - "callId"
+      - "attributes.tool_run_id"
+      - "attributes.tool_use_id"
+      - "attributes.tool_call_id"
+      - "attributes.call_id"
+      - "attributes.callId"
+
+    tool_result:
+      - "tool_result"
+      - "tool.result"
+      - "attributes.tool.result"
+      - "attributes.tool_result"
+      - "attributes.function.result"
+      - "attributes.rpc.response"
+
+    tool_input:
+      - "tool_input"
+      - "tool.input"
+      - "attributes.tool.input"
+      - "attributes.tool_input"
+      - "attributes.function.arguments"
+      - "attributes.function.args"
+
+    tool_arguments:
+      - "tool_arguments"
+      - "tool.arguments"
+      - "attributes.tool.arguments"
+      - "attributes.tool_arguments"
+      - "attributes.function.arguments"
+      - "attributes.function.params"
+
+    # ---- model/message fields ----
+    role:
+      - "role"
+      - "attributes.role"
+      - "attributes.message.role"
+      - "attributes.chat.role"
+
+    span_kind:
+      - "span.kind"
+      - "attributes.span.kind"
+      - "attributes.spanKind"
+
+    model_id:
+      - "model_id"
+      - "modelId"
+      - "attributes.model"
+      - "attributes.model_id"
+      - "attributes.modelId"
+      - "attributes.llm.request.model"
+      - "attributes.llm.model"
+      - "attributes.bedrock.model_id"
+
+    text:
+      - "text"
+      - "message"
+      - "content"
+      - "body"
+      - "attributes.message"
+      - "attributes.content"
+      - "output.text"
+      - "response.text"
+      - "attributes.output.text"
+      - "attributes.response.text"
+
+    # ---- step fields ----
+    status:
+      - "status"
+      - "attributes.status"
+      - "attributes.outcome"
+      - "attributes.result"
+      - "attributes.http.status_code"
+      - "attributes.http.status"
+      - "attributes.rpc.status_code"
+
+    latency_ms:
+      - "latency_ms"
+      - "duration_ms"
+      - "attributes.latency_ms"
+      - "attributes.duration_ms"
+      - "attributes.response_time_ms"
+      - "attributes.elapsed_ms"
+      - "attributes.http.latency_ms"
+
+  timestamp_parse:
+    epoch_units: ["ms", "s", "ns"]
+    infer_epoch_unit_by_magnitude: true
+    min_reasonable_year: 2000
+    max_reasonable_year: 2100
+    # v6: explicit contract for OTEL UnixNano
+    unix_nano_fields: ["startTimeUnixNano", "endTimeUnixNano"]
+    formats:
+      - "%Y-%m-%d %H:%M:%S.%f"
+      - "%Y-%m-%d %H:%M:%S"
+      - "%Y-%m-%dT%H:%M:%S.%fZ"
+      - "%Y-%m-%dT%H:%M:%SZ"
+      - "%Y-%m-%dT%H:%M:%S%z"
+
+  carry_fields:
+    attributes_paths:
+      - "attributes"
+      - "span.attributes"
+      - "resource.attributes"
+    keep_raw_event: true
+    raw_event_max_bytes: 50000
+
+# ----------------------------
+# Stage A — Event meaning (classification)
+# ----------------------------
+classify:
+  rule_order_policy: first_match_wins
+
+  rules:
+    - id: user_input_by_type_or_role
+      kind: USER_INPUT
+      any:
+        - field: event_type
+          regex: "(?i)user(_message|input)|human|input"
+        - field: role
+          regex: "(?i)^user$"
+
+    - id: model_invoke_by_type_or_span_kind_or_model
+      kind: MODEL_INVOKE
+      any:
+        - field: event_type
+          regex: "(?i)model(_invoke|request)|llm(_invoke|request)|bedrock.*invoke|chat\\.completion\\.create"
+        - field: span_kind
+          regex: "(?i)client"
+        - field: model_id
+          exists: true
+
+    - id: llm_output_chunk_by_type_or_role
+      kind: LLM_OUTPUT_CHUNK
+      any:
+        - field: event_type
+          regex: "(?i)llm(_output|_chunk|output_chunk)|model(_output|response)|completion(_chunk)?"
+        - field: role
+          regex: "(?i)^assistant$"
+
+    - id: tool_call_strict
+      kind: TOOL_CALL
+      all:
+        - field: tool_name
+          exists: true
+      any:
+        - field: tool_run_id
+          exists: true
+        - field: tool_arguments
+          exists: true
+        - field: tool_input
+          exists: true
+    
+    # Looser tool call detection (placed after strict rule)
+    - id: tool_call_by_type
+      kind: TOOL_CALL
+      all:
+        - field: tool_name
+          exists: true
+      any:
+        - field: event_type
+          regex: "(?i)invocation|tool(_call|_invoke)?|function\\.call"
+        - field: operation
+          regex: "(?i)\\b(function\\.call|tool(_call|_invoke)?|invoke)\\b"
+
+    - id: tool_result_by_type_or_payload
+      kind: TOOL_RESULT
+      any:
+        - field: tool_result
+          exists: true
+        - field: event_type
+          regex: "(?i)tool(_result|_response)|function\\.result"
+        - field: operation
+          regex: "(?i)\\b(function\\.result|tool(_result|_response)?|response)\\b"
+
+    - id: prompt_context_scaffolding
+      kind: PROMPT_CONTEXT
+      any:
+        - field: text
+          regex: "(?is)<guidelines>.*?</guidelines>"
+        - field: text
+          regex: "(?i)these are user preferences:|these are user facts:"
+        - field: text
+          regex: "(?i)you are a helpful customer support agent"
+
+  default_kind: EVENT
+
+# ----------------------------
+# Stage B — Turn segmentation
+# ----------------------------
+segment:
+  strategy_preference:
+    - TURN_ID
+    - SESSION_PLUS_REQUEST
+    - SESSION_PLUS_TRACE_THEN_ANCHOR_SPLIT
+    - SINGLE_TURN
+
+  turn_id_fields: ["turn_id", "request_id"]
+
+  request_id_diagnosis:
+    distinct_user_prompts_per_request_id_max: 1
+    request_ids_per_user_prompt_max: 3
+    sample_window_events: 5000
+
+  anchor_events_in_order:
+    - USER_INPUT
+    - MODEL_INVOKE
+
+  tie_breaker_order:
+    - USER_INPUT
+    - MODEL_INVOKE
+    - TOOL_CALL
+    - TOOL_RESULT
+    - LLM_OUTPUT_CHUNK
+    - EVENT
+
+  emit_strategy_reason: true
+  min_events_per_turn: 1
+
+# ----------------------------
+# Stage C — Derivations
+# ----------------------------
+derive:
+  phases:
+    pre_tool: PRE_TOOL_GENERATION
+    tool_call: TOOL_CALL
+    post_tool: FINAL_GENERATION
+
+  prompt_context_strip:
+    strip_kinds: ["PROMPT_CONTEXT"]
+    strip_text_regex:
+      - "(?is)<guidelines>.*?</guidelines>"
+      - "(?i)these are user preferences:|these are user facts:"
+      - "(?i)you are a helpful customer support agent"
+
+  output_extraction:
+    top_level_path_syntax: "dot"
+    top_level_dotpath_required: true
+    top_level_fields:
+      final_answer:
+        - "final_answer"
+        - "trace.final_answer"
+        - "response.final_answer"
+      user_query:
+        - "user_query"
+        - "query"
+        - "prompt"
+        - "request.prompt"
+      finish_reason:
+        - "finish_reason"
+        - "stop_reason"
+        - "response.finish_reason"
+
+    assistant_output_stream:
+      include_kinds: ["LLM_OUTPUT_CHUNK"]
+      exclude_if_text_matches_regex:
+        - "(?is)<guidelines>.*?</guidelines>"
+        - "(?i)these are user preferences:|these are user facts:"
+    join_with: ""
+    max_chars: 200000
+
+  tool_linking:
+    tool_run_exists_only_if:
+      kind_in: ["TOOL_CALL"]
+      tool_name_required: true
+    tool_run_id_fields: ["tool_run_id"]
+    link_results_by:
+      - TOOL_RUN_ID
+      - SPAN_PARENT_CHILD
+    dedupe:
+      enabled: true
+      window_seconds: 2
+      key_fields: ["tool_run_id", "tool_name"]
+      prefer_richer_fields: ["tool_arguments", "tool_input", "attributes"]
+
+  latency:
+    normalized_latency_ms:
+      start_from_first_kind_in: ["USER_INPUT", "MODEL_INVOKE", "LLM_OUTPUT_CHUNK", "TOOL_CALL"]
+      end_at_last_kind_in: ["LLM_OUTPUT_CHUNK", "TOOL_RESULT", "EVENT"]
+    keep_runtime_reported_latency_ms_fields:
+      - "total_latency_ms"
+      - "attributes.total_latency_ms"
+      - "attributes.latency_ms"
+    on_missing_timestamps: "null_and_penalize"
+
+  attribution:
+    verdicts:
+      tool_used_if_has_kind: "TOOL_CALL"
+      tool_output_only_if_text_matches_regex:
+        - "(?is)\\bRetrieved\\s+\\d+\\s+results\\b.*\\bScore:\\s*[\\d.]+\\b.*\\bDocument ID:\\b"
+        - "(?s)^\\s*\\{\\s*\"statusCode\"\\s*:\\s*\\d+\\s*,\\s*\"body\"\\s*:\\s*\".*\"\\s*\\}\\s*$"
+    stitch_suspect:
+      enabled: true
+      question_line_regex: "(?m)^.{3,300}\\?$"
+      distinct_question_count_suspect_at: 2
+
+# ----------------------------
+# Confidence + stats
+# ----------------------------
+confidence:
+  scoring:
+    base: 1.0
+    penalties:
+      missing_timestamp: 0.4
+      missing_grouping_ids: 0.3
+      no_anchor_found: 0.3
+      no_llm_output: 0.2
+      missing_latency: 0.2
+      single_turn_fallback: 0.25
+      orphan_tool_results: 0.15
+  emit_fields:
+    - "run_confidence"
+    - "turn_confidence"
+    - "segmentation_strategy_used"
+    - "mapping_coverage"
+
+stats:
+  emit_adapter_stats: true
+  max_error_examples: 20

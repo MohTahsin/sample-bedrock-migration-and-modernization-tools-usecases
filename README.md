@@ -28,6 +28,23 @@ Production-ready patterns and examples.
 - Best practices
 - Reference architectures
 
+### 4. Agentic Evaluation — Evaluate agent behavior from traces (offline)
+**[agent-eval](agent-eval/)**
+
+Agentic Evaluation evaluates agent behavior and outcome quality from recorded traces — without invoking the runtime.
+
+This module analyzes:
+- Orchestrator responses
+- Tool/sub-agent invocation paths
+- Latency and failures
+- Correctness vs golden answers (via judge model)
+
+It is designed to be:
+- Runtime-agnostic
+- Cloud-agnostic
+- Offline-first
+- CI-friendly
+
 ## Prerequisites
 
 - AWS Account with Bedrock access

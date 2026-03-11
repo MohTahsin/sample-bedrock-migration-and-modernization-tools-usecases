@@ -1,0 +1,8 @@
+{
+  "expected_exit_code": 0,
+  "min_turns": 1,
+  "max_turns": 2,
+  "expected_tool_calls": 1,
+  "min_confidence": 0.5,
+  "description": "Tool calls with junk metadata"
+}
