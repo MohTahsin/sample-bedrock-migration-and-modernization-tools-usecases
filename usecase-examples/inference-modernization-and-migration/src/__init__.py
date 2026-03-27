@@ -19,7 +19,6 @@ from .utils import (
     ModelResponse,
     RAGResult,
     DriftAnalysis,
-    QueryVariation,
     DocumentChunk,
 
     # Client initialization
@@ -47,23 +46,13 @@ from .utils import (
     # Drift detection
     detect_verbosity_drift,
     detect_semantic_drift,
-    detect_retrieval_drift,
-    run_drift_detection_pipeline,
-    detect_distribution_drift_ks_test,
-    detect_mean_shift,
-
-    # Report generation
-    generate_drift_comparison_report,
-    generate_batch_drift_summary,
 
     # Visualization
     print_drift_spectrum_summary,
     print_verbosity_comparison,
     print_semantic_drift_comparison,
-    print_drift_results_summary,
 
     # Test data helpers
-    create_metformin_test_variations,
     get_metformin_expected_output,
     get_metformin_expected_entities,
 )
@@ -80,7 +69,6 @@ __all__ = [
     "ModelResponse",
     "RAGResult",
     "DriftAnalysis",
-    "QueryVariation",
     "DocumentChunk",
 
     # Client initialization
@@ -108,23 +96,13 @@ __all__ = [
     # Drift detection
     "detect_verbosity_drift",
     "detect_semantic_drift",
-    "detect_retrieval_drift",
-    "run_drift_detection_pipeline",
-    "detect_distribution_drift_ks_test",
-    "detect_mean_shift",
-
-    # Report generation
-    "generate_drift_comparison_report",
-    "generate_batch_drift_summary",
 
     # Visualization
     "print_drift_spectrum_summary",
     "print_verbosity_comparison",
     "print_semantic_drift_comparison",
-    "print_drift_results_summary",
 
     # Test data helpers
-    "create_metformin_test_variations",
     "get_metformin_expected_output",
     "get_metformin_expected_entities",
 ]

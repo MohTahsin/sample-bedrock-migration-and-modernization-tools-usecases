@@ -94,17 +94,6 @@ class DriftAnalysis:
     details: Dict
 
 
-@dataclass
-class QueryVariation:
-    """Represents a query variation for testing."""
-    query_id: str
-    query_text: str
-    variation_type: str  # "standard", "verbose_trigger", "semantic_drift"
-    expected_behavior: str
-    drift_risk: Optional[str] = None
-    failure_mode: Optional[str] = None
-
-
 # ============================================================================
 # BEDROCK CLIENT INITIALIZATION
 # ============================================================================
@@ -827,471 +816,19 @@ def detect_semantic_drift(
         return False, "none", details
 
 
-def detect_retrieval_drift(
-    baseline_document_id: str,
-    current_document_id: str,
-    baseline_relevance: float,
-    current_relevance: float,
-    relevance_drop_threshold: float = 0.15,
-    critical_relevance_threshold: float = 0.40
-) -> Tuple[bool, str, Dict]:
-    """
-    Detect if RAG retrieval drift has occurred.
-
-    RAG drift is distinct from semantic drift - it specifically measures whether
-    the retrieval step is returning different documents or significantly lower
-    relevance scores. This can happen due to:
-    - Query phrasing changes that affect embedding similarity
-    - Document corpus updates
-    - Embedding model changes
-    - Query containing misleading terms (e.g., "scurvy" instead of "metformin")
-
-    Args:
-        baseline_document_id: Document ID retrieved for baseline query
-        current_document_id: Document ID retrieved for current query
-        baseline_relevance: Relevance score for baseline retrieval (0-1)
-        current_relevance: Relevance score for current retrieval (0-1)
-        relevance_drop_threshold: Max acceptable relevance drop before warning
-        critical_relevance_threshold: Relevance below this is critical
-
-    Returns:
-        Tuple of (drift_detected, severity, details_dict)
-    """
-    issues = []
-
-    # Check if different document was retrieved
-    document_changed = baseline_document_id != current_document_id
-    if document_changed:
-        issues.append(f"document_changed: {baseline_document_id} → {current_document_id}")
-
-    # Check relevance score drop
-    relevance_drop = baseline_relevance - current_relevance
-    if relevance_drop > relevance_drop_threshold:
-        issues.append(f"relevance_drop={relevance_drop:.3f} > {relevance_drop_threshold}")
-
-    # Check absolute relevance threshold
-    if current_relevance < critical_relevance_threshold:
-        issues.append(f"low_relevance={current_relevance:.3f} < {critical_relevance_threshold}")
-
-    details = {
-        "baseline_document_id": baseline_document_id,
-        "current_document_id": current_document_id,
-        "document_changed": document_changed,
-        "baseline_relevance": baseline_relevance,
-        "current_relevance": current_relevance,
-        "relevance_drop": relevance_drop,
-        "issues": issues
-    }
-
-    # Critical: Document changed OR very low relevance
-    if document_changed or current_relevance < critical_relevance_threshold:
-        return True, "critical", details
-    # Warning: Relevance dropped significantly
-    elif relevance_drop > relevance_drop_threshold:
-        return True, "warning", details
-    else:
-        return False, "none", details
-
-
-def run_drift_detection_pipeline(
-    baseline_query: str,
-    test_query: str,
-    expected_output: str,
-    expected_entities: List[str],
-    bedrock_client: Optional[boto3.client] = None
-) -> DriftAnalysis:
-    """
-    Run the complete drift detection pipeline comparing baseline to test query.
-
-    Args:
-        baseline_query: The standard/baseline query
-        test_query: The query variation to test
-        expected_output: Expected correct output for comparison
-        expected_entities: List of entities that should appear in correct answer
-        bedrock_client: Optional pre-configured Bedrock client
-
-    Returns:
-        DriftAnalysis with complete drift assessment
-    """
-    # Get RAG context for both queries
-    baseline_context, baseline_rag = retrieve_medication_documents_for_query(baseline_query)
-    test_context, test_rag = retrieve_medication_documents_for_query(test_query)
-
-    # Invoke model for both queries
-    baseline_response = invoke_model_with_rag_context(
-        baseline_query, baseline_context, bedrock_client=bedrock_client
-    )
-    test_response = invoke_model_with_rag_context(
-        test_query, test_context, bedrock_client=bedrock_client
-    )
-
-    # Compute metrics
-    semantic_sim = compute_semantic_similarity(test_response.output, expected_output)
-    entity_score, found, missing = compute_entity_match_score(
-        test_response.output, expected_entities
-    )
-
-    # Detect drift types
-    verbosity_detected, verbosity_severity, token_ratio = detect_verbosity_drift(
-        baseline_response.output_tokens, test_response.output_tokens
-    )
-
-    semantic_detected, semantic_severity, semantic_details = detect_semantic_drift(
-        semantic_sim, entity_score, test_rag.relevance_score
-    )
-
-    # Determine overall drift type
-    if semantic_detected and semantic_severity == "critical":
-        drift_type = DriftType.SEMANTIC
-        severity = "critical"
-    elif not test_rag.is_correct_document:
-        drift_type = DriftType.RETRIEVAL
-        severity = "critical"
-    elif verbosity_detected:
-        drift_type = DriftType.VERBOSITY
-        severity = verbosity_severity
-    elif semantic_detected:
-        drift_type = DriftType.SEMANTIC
-        severity = semantic_severity
-    else:
-        drift_type = DriftType.NONE
-        severity = "none"
-
-    return DriftAnalysis(
-        drift_type=drift_type,
-        severity=severity,
-        token_ratio=token_ratio,
-        semantic_similarity=semantic_sim,
-        entity_match_score=entity_score,
-        rag_relevance_delta=baseline_rag.relevance_score - test_rag.relevance_score,
-        details={
-            "baseline_tokens": baseline_response.output_tokens,
-            "test_tokens": test_response.output_tokens,
-            "baseline_rag_relevance": baseline_rag.relevance_score,
-            "test_rag_relevance": test_rag.relevance_score,
-            "baseline_doc": baseline_rag.document_id,
-            "test_doc": test_rag.document_id,
-            "correct_doc_retrieved": test_rag.is_correct_document,
-            "entities_found": found,
-            "entities_missing": missing,
-            "baseline_output": baseline_response.output,
-            "test_output": test_response.output
-        }
-    )
-
-
 # ============================================================================
 # STATISTICAL DRIFT DETECTION (for batch analysis)
 # ============================================================================
-
-def detect_distribution_drift_ks_test(
-    baseline_scores: List[float],
-    current_scores: List[float],
-    alpha: float = 0.05
-) -> Tuple[bool, float, float]:
-    """
-    Detect drift using Kolmogorov-Smirnov test for distribution comparison.
-
-    Args:
-        baseline_scores: Quality scores from baseline evaluation
-        current_scores: Quality scores from current evaluation
-        alpha: Significance level for the test
-
-    Returns:
-        Tuple of (drift_detected, p_value, effect_size)
-    """
-    if len(baseline_scores) < 2 or len(current_scores) < 2:
-        return False, 1.0, 0.0
-
-    statistic, p_value = stats.ks_2samp(baseline_scores, current_scores)
-    effect_size = abs(np.mean(baseline_scores) - np.mean(current_scores))
-
-    drift_detected = p_value < alpha
-
-    return drift_detected, round(p_value, 4), round(effect_size, 4)
-
-
-def detect_mean_shift(
-    baseline_scores: List[float],
-    current_scores: List[float],
-    threshold_percent: float = 10.0
-) -> Tuple[bool, float, str]:
-    """
-    Detect if mean quality score has shifted by more than threshold.
-
-    Args:
-        baseline_scores: Scores from baseline evaluation
-        current_scores: Scores from current evaluation
-        threshold_percent: Percentage change that triggers alert
-
-    Returns:
-        Tuple of (shift_detected, percent_change, direction)
-    """
-    baseline_mean = np.mean(baseline_scores)
-    current_mean = np.mean(current_scores)
-
-    if baseline_mean == 0:
-        return False, 0.0, "none"
-
-    percent_change = ((current_mean - baseline_mean) / baseline_mean) * 100
-    direction = "improvement" if percent_change > 0 else "degradation"
-
-    shift_detected = abs(percent_change) > threshold_percent
-
-    return shift_detected, round(percent_change, 2), direction
 
 
 # ============================================================================
 # REPORT GENERATION
 # ============================================================================
 
-def generate_drift_comparison_report(
-    baseline_query: str,
-    baseline_response: ModelResponse,
-    test_query: str,
-    test_response: ModelResponse,
-    expected_output: str,
-    expected_entities: List[str],
-    baseline_rag: RAGResult,
-    test_rag: RAGResult
-) -> str:
-    """
-    Generate a formatted text report comparing baseline and test results.
-
-    Args:
-        baseline_query: The baseline query text
-        baseline_response: Response from baseline query
-        test_query: The test query text
-        test_response: Response from test query
-        expected_output: Expected correct output
-        expected_entities: Expected entities in correct answer
-        baseline_rag: RAG result for baseline
-        test_rag: RAG result for test
-
-    Returns:
-        Formatted string report
-    """
-    # Compute metrics
-    semantic_sim = compute_semantic_similarity(test_response.output, expected_output)
-    entity_score, found, missing = compute_entity_match_score(
-        test_response.output, expected_entities
-    )
-
-    verbosity_detected, verbosity_severity, token_ratio = detect_verbosity_drift(
-        baseline_response.output_tokens, test_response.output_tokens
-    )
-
-    baseline_cost = compute_token_cost_estimate(
-        baseline_response.input_tokens, baseline_response.output_tokens
-    )
-    test_cost = compute_token_cost_estimate(
-        test_response.input_tokens, test_response.output_tokens
-    )
-
-    report = f"""
-{'=' * 70}
-DRIFT DETECTION REPORT
-{'=' * 70}
-
-BASELINE QUERY:
-"{baseline_query[:70]}..."
-
-RAG RETRIEVAL: {baseline_rag.document_id}
-  Relevance: {baseline_rag.relevance_score} {'✅' if baseline_rag.is_correct_document else '❌'}
-
-BASELINE RESPONSE ({baseline_response.output_tokens} tokens):
-{'-' * 70}
-{baseline_response.output[:500]}{'...' if len(baseline_response.output) > 500 else ''}
-{'-' * 70}
-
-{'=' * 70}
-
-TEST QUERY:
-"{test_query[:70]}..."
-
-RAG RETRIEVAL: {test_rag.document_id}
-  Relevance: {test_rag.relevance_score} {'✅' if test_rag.is_correct_document else '❌ WRONG DOCUMENT'}
-
-TEST RESPONSE ({test_response.output_tokens} tokens):
-{'-' * 70}
-{test_response.output[:500]}{'...' if len(test_response.output) > 500 else ''}
-{'-' * 70}
-
-{'=' * 70}
-DRIFT ANALYSIS
-{'=' * 70}
-
-┌─────────────────────┬─────────────┬─────────────┬─────────────────┐
-│ Metric              │ Baseline    │ Test        │ Status          │
-├─────────────────────┼─────────────┼─────────────┼─────────────────┤
-│ Output Tokens       │ {baseline_response.output_tokens:<11} │ {test_response.output_tokens:<11} │ {f'+{int((token_ratio-1)*100)}%' if token_ratio > 1.1 else 'OK':<15} │
-│ Estimated Cost      │ ${baseline_cost:<10.4f} │ ${test_cost:<10.4f} │ {f'+{int((test_cost/baseline_cost-1)*100)}%' if test_cost > baseline_cost*1.1 else 'OK':<15} │
-│ RAG Relevance       │ {baseline_rag.relevance_score:<11} │ {test_rag.relevance_score:<11} │ {'❌ LOW' if test_rag.relevance_score < 0.5 else '✅':<15} │
-│ Semantic Similarity │ {'1.0 (ref)':<11} │ {semantic_sim:<11} │ {'❌ DRIFT' if semantic_sim < 0.7 else '✅':<15} │
-│ Entity Match        │ {'100%':<11} │ {f'{int(entity_score*100)}%':<11} │ {'❌ MISSING' if entity_score < 0.5 else '✅':<15} │
-│ Correct Document    │ {'Yes':<11} │ {'Yes' if test_rag.is_correct_document else 'No':<11} │ {'❌ WRONG' if not test_rag.is_correct_document else '✅':<15} │
-└─────────────────────┴─────────────┴─────────────┴─────────────────┘
-
-ENTITIES FOUND: {', '.join(found) if found else '(none)'}
-ENTITIES MISSING: {', '.join(missing) if missing else '(none)'}
-
-{'=' * 70}
-VERDICT
-{'=' * 70}
-"""
-
-    if not test_rag.is_correct_document:
-        report += """
-❌ CRITICAL: SEMANTIC DRIFT DETECTED
-- Wrong document retrieved by RAG
-- Patient received information about wrong topic
-- PATIENT SAFETY RISK
-"""
-    elif token_ratio > 2.5:
-        report += f"""
-⚠️ WARNING: SEVERE VERBOSITY DRIFT
-- Token count increased by {int((token_ratio-1)*100)}%
-- Same correct information, much higher cost
-- Monthly cost impact at 100K queries: +${int((test_cost - baseline_cost) * 100000)}/month
-"""
-    elif token_ratio > 1.5:
-        report += f"""
-⚠️ WARNING: VERBOSITY DRIFT
-- Token count increased by {int((token_ratio-1)*100)}%
-- Consider adding conciseness instructions to prompt
-"""
-    else:
-        report += """
-✅ NO SIGNIFICANT DRIFT DETECTED
-- Response quality maintained
-- Cost within acceptable range
-"""
-
-    return report
-
-
-def generate_batch_drift_summary(
-    results: List[DriftAnalysis],
-    variation_types: List[str]
-) -> str:
-    """
-    Generate a summary report for batch drift analysis.
-
-    Args:
-        results: List of DriftAnalysis results
-        variation_types: Corresponding variation type for each result
-
-    Returns:
-        Formatted summary report string
-    """
-    # Group by variation type
-    by_type = {}
-    for result, var_type in zip(results, variation_types):
-        if var_type not in by_type:
-            by_type[var_type] = []
-        by_type[var_type].append(result)
-
-    report = f"""
-{'=' * 70}
-BATCH DRIFT DETECTION SUMMARY
-{'=' * 70}
-
-Total queries analyzed: {len(results)}
-"""
-
-    for var_type, type_results in by_type.items():
-        critical = sum(1 for r in type_results if r.severity == "critical")
-        warning = sum(1 for r in type_results if r.severity == "warning")
-        ok = sum(1 for r in type_results if r.severity == "none")
-
-        avg_token_ratio = np.mean([r.token_ratio for r in type_results])
-        avg_semantic_sim = np.mean([r.semantic_similarity for r in type_results])
-
-        status = "❌ CRITICAL" if critical > 0 else ("⚠️ WARNING" if warning > 0 else "✅ OK")
-
-        report += f"""
-{var_type.upper()} QUERIES ({len(type_results)} total)                    {status}
-{'-' * 70}
-  Critical issues: {critical}
-  Warnings: {warning}
-  OK: {ok}
-  Avg token ratio: {avg_token_ratio:.2f}x
-  Avg semantic similarity: {avg_semantic_sim:.2f}
-"""
-
-    return report
-
 
 # ============================================================================
 # GOLDEN DATASET HELPERS
 # ============================================================================
-
-def create_metformin_test_variations() -> List[QueryVariation]:
-    """
-    Create a set of test query variations for metformin side effects question.
-
-    Returns:
-        List of QueryVariation objects covering different drift scenarios
-    """
-    return [
-        QueryVariation(
-            query_id="MET-001-standard",
-            query_text="What are the side effects of metformin?",
-            variation_type="standard",
-            expected_behavior="correct_concise"
-        ),
-        QueryVariation(
-            query_id="MET-001-verbose",
-            query_text="""Hi there! I was recently prescribed metformin by my doctor
-and I'm a bit nervous about starting it. Could you please help me understand
-what kind of side effects I might experience? I want to be prepared. Thank you so much!""",
-            variation_type="verbose_trigger",
-            expected_behavior="correct_verbose",
-            drift_risk="cost"
-        ),
-        QueryVariation(
-            query_id="MET-001-slang",
-            query_text="That diabetes med is messing with my gut, what gives?",
-            variation_type="semantic_drift",
-            expected_behavior="may_fail",
-            drift_risk="accuracy",
-            failure_mode="vague_reference"
-        ),
-        QueryVariation(
-            query_id="MET-001-brand",
-            query_text="What about Glucophage side effects?",
-            variation_type="semantic_drift",
-            expected_behavior="should_work",
-            drift_risk="accuracy",
-            failure_mode="brand_name"
-        ),
-        QueryVariation(
-            query_id="MET-001-typo",
-            query_text="What are side effects of metforman?",
-            variation_type="semantic_drift",
-            expected_behavior="may_fail",
-            drift_risk="accuracy",
-            failure_mode="misspelling"
-        ),
-        QueryVariation(
-            query_id="MET-001-pirate",
-            query_text="""Ahoy! Me doc put me on that sugar pill for me blood sugar,
-the one that starts with M. What scurvy symptoms might I be expectin'
-from this here medicine, matey?""",
-            variation_type="semantic_drift",
-            expected_behavior="likely_fail",
-            drift_risk="critical",
-            failure_mode="persona_and_wrong_terminology"
-        ),
-        QueryVariation(
-            query_id="MET-001-elderly",
-            query_text="My sugar medicine, the little white pills my doctor gave me, what should I watch out for?",
-            variation_type="semantic_drift",
-            expected_behavior="may_fail",
-            drift_risk="accuracy",
-            failure_mode="vague_description"
-        )
-    ]
 
 
 def get_metformin_expected_output() -> str:
@@ -2074,69 +1611,92 @@ def print_semantic_drift_comparison(
     print("  - PATIENT SAFETY RISK: Wrong or missing information about actual medication")
 
 
-def print_drift_results_summary(
-    results: List[Tuple],
-) -> None:
+def print_drift_query_analysis(query: str) -> None:
     """
-    Print a summary table of drift detection results.
+    Print analysis of a semantic drift query showing why it's problematic.
 
     Args:
-        results: List of (QueryVariation, DriftAnalysis) tuples
+        query: The drift query text
     """
-    print("\nDRIFT DETECTION RESULTS SUMMARY")
-    print("=" * 80)
-    print(f"{'Query ID':<20} {'Type':<15} {'Drift':<12} {'Severity':<10} {'Tokens':<8} {'Similarity':<10}")
-    print("-" * 80)
+    print("SEMANTIC DRIFT QUERY:")
+    print(f'  "{query}"')
+    print()
+    print("PROBLEMS WITH THIS QUERY:")
+    print("  - Medication name IS present ('metformin')")
+    print("  - Wrong medical terminology ('scurvy', 'vitamin deficiency')")
+    print("  - Regional dialect adds noise ('wrecked', 'banjaxed', 'grand')")
+    print("  - Symptom description matches vitamin deficiency, not metformin")
+    print()
+    print("KEY INSIGHT: Even with 'metformin' in the query, the wrong terminology")
+    print("            ('scurvy', 'vitamin deficiency') dominates the embedding space.")
 
-    for var, analysis in results:
-        print(f"{var.query_id:<20} {var.variation_type:<15} {analysis.drift_type.value:<12} {analysis.severity:<10} {f'{analysis.token_ratio:.1f}x':<8} {analysis.semantic_similarity:<10.2f}")
 
-    print("=" * 80)
+def print_rag_failure_analysis(rag_result) -> None:
+    """
+    Print analysis of a failed RAG retrieval showing what went wrong.
 
-    # Count by severity
-    critical = sum(1 for _, a in results if a.severity == "critical")
-    warning = sum(1 for _, a in results if a.severity == "warning")
-    ok = sum(1 for _, a in results if a.severity == "none")
+    Args:
+        rag_result: RAGResult from the retrieval step
+    """
+    correct = rag_result.is_correct_document
+    print("RAG RETRIEVAL RESULT:")
+    print(f"  Document: {rag_result.document_id}")
+    print(f"  Relevance: {rag_result.relevance_score}")
+    print(f"  Correct document: {'Yes' if correct else 'No - WRONG DOCUMENT RETRIEVED'}")
+    print()
+    if not correct:
+        print("FAILURE ANALYSIS:")
+        print("  1. 'scurvy' and 'vitamin deficiency' have stronger semantic weight")
+        print("  2. Regional dialect ('banjaxed', 'wrecked') adds embedding noise")
+        print("  3. Symptom list (gums, joints, bruising) matches vitamin C deficiency")
+        print("  4. Single mention of 'metformin' is overpowered by wrong terminology")
+        print()
+        print("  This demonstrates how terminology drift breaks RAG even when the")
+        print("  correct medication name is present in the query!")
 
-    print(f"\nSUMMARY: {len(results)} queries tested")
-    print(f"  ❌ Critical: {critical}")
-    print(f"  ⚠️ Warning: {warning}")
-    print(f"  ✅ OK: {ok}")
+
+def print_retrieved_document(context: str, rag_result) -> None:
+    """
+    Print the retrieved document content with a warning if it's the wrong document.
+
+    Args:
+        context: The retrieved document text
+        rag_result: RAGResult from the retrieval step
+    """
+    print("RETRIEVED DOCUMENT CONTENT:")
+    print("=" * 70)
+    print(context[:500])
+    print("...")
+    print("=" * 70)
+    print()
+    doc_name = rag_result.document_id.replace('_guide', '').upper()
+    if not rag_result.is_correct_document:
+        print(f"This is information about {doc_name},")
+        print("   NOT about metformin side effects!")
+
+
+def print_drift_response(response, rag_result) -> None:
+    """
+    Print the LLM response with a warning about wrong context.
+
+    Args:
+        response: ModelResponse from the LLM invocation
+        rag_result: RAGResult from the retrieval step
+    """
+    print("LLM RESPONSE:")
+    print("=" * 70)
+    print(response.output)
+    print("=" * 70)
+    print()
+    doc_name = rag_result.document_id.replace('_guide', '').upper()
+    if not rag_result.is_correct_document:
+        print(f"The model answered about {doc_name}, not METFORMIN!")
+        print("   The patient receives ZERO relevant information about their actual medication.")
 
 
 # ============================================================================
 # SHADOW TESTING DISPLAY HELPERS
 # ============================================================================
-
-def print_invocation_log_summary(
-    invocation_logs: List,
-    categories: Dict[str, int]
-) -> None:
-    """
-    Print a summary of captured invocation logs.
-
-    Args:
-        invocation_logs: List of InvocationLog entries (must have .output_tokens, .cost, .latency_ms, .category)
-        categories: Dict mapping category name to count
-    """
-    total_tokens = sum(l.output_tokens for l in invocation_logs)
-    total_cost = sum(l.cost for l in invocation_logs)
-    avg_latency = np.mean([l.latency_ms for l in invocation_logs])
-    error_count = sum(1 for l in invocation_logs if l.response.startswith("Error:"))
-
-    print("INVOCATION LOG SUMMARY")
-    print("=" * 60)
-    print(f"  Total invocations:   {len(invocation_logs)}")
-    print(f"  Errors:              {error_count}")
-    print(f"  Total output tokens: {total_tokens:,}")
-    print(f"  Avg latency:         {avg_latency:.0f} ms")
-    print(f"  Total cost:          ${total_cost:.6f}")
-    print(f"  Avg cost/query:      ${total_cost / len(invocation_logs):.6f}")
-    print(f"\n  Category breakdown:")
-    for cat in sorted(categories):
-        cat_logs = [l for l in invocation_logs if l.category == cat]
-        cat_avg = np.mean([l.latency_ms for l in cat_logs])
-        print(f"    {cat:<25} {len(cat_logs):3d} logs  avg {cat_avg:.0f}ms")
 
 
 def print_evaluation_progress(
