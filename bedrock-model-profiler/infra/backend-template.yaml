@@ -1,0 +1,699 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Bedrock Model Profiler - Step Functions Workflow
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+
+  ScheduleEnabled:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Enable daily scheduled execution
+
+  DataBucketName:
+    Type: String
+    Description: Name of the S3 data bucket (created by the frontend stack)
+
+  FrontendStackName:
+    Type: String
+    Default: ''
+    Description: Name of the frontend CloudFormation stack. Used to import the CloudFront distribution ID for automatic cache invalidation.
+
+  LogLevel:
+    Type: String
+    Default: INFO
+    AllowedValues: [DEBUG, INFO, WARNING, ERROR]
+    Description: Log level for Lambda functions
+
+  # Configuration parameters for Lambda functions
+  AvailabilityMaxWorkers:
+    Type: Number
+    Default: 10
+    MinValue: 1
+    MaxValue: 50
+    Description: Max parallel workers for regional availability checks
+
+  AvailabilityRegionTimeout:
+    Type: Number
+    Default: 30
+    MinValue: 5
+    MaxValue: 120
+    Description: Timeout in seconds for each region availability check
+
+  QuotaBatchSize:
+    Type: Number
+    Default: 100
+    MinValue: 10
+    MaxValue: 1000
+    Description: Batch size for quota collection API calls
+
+  PricingMaxBatches:
+    Type: Number
+    Default: 100
+    MinValue: 10
+    MaxValue: 1000
+    Description: Maximum number of batches for pricing API calls
+
+  PricingApiTimeout:
+    Type: Number
+    Default: 60
+    MinValue: 10
+    MaxValue: 300
+    Description: Timeout in seconds for pricing API calls
+
+  PricingThrottleDelay:
+    Type: String
+    Default: '0.5'
+    Description: Delay in seconds between pricing API calls to avoid throttling
+
+  PricingRetryDelay:
+    Type: String
+    Default: '2'
+    Description: Delay in seconds before retrying failed pricing API calls
+
+  AwsConnectTimeout:
+    Type: Number
+    Default: 10
+    MinValue: 1
+    MaxValue: 60
+    Description: Connection timeout in seconds for AWS API calls
+
+  AwsReadTimeout:
+    Type: Number
+    Default: 30
+    MinValue: 5
+    MaxValue: 120
+    Description: Read timeout in seconds for AWS API calls
+
+  AwsMaxRetries:
+    Type: Number
+    Default: 3
+    MinValue: 0
+    MaxValue: 10
+    Description: Maximum number of retries for AWS API calls
+
+  CognitoRegion:
+    Type: String
+    Default: us-east-1
+    Description: AWS region for Cognito User Pool
+
+  Ec2Region:
+    Type: String
+    Default: us-east-1
+    Description: AWS region for EC2 API calls (region discovery)
+
+Conditions:
+  HasFrontendStack: !Not [!Equals [!Ref FrontendStackName, '']]
+  ScheduleEnabledCondition: !Equals [!Ref ScheduleEnabled, 'true']
+
+Globals:
+  Function:
+    Runtime: python3.11
+    Timeout: 60
+    MemorySize: 256
+    Layers:
+      - !Ref SharedUtilsLayer
+      - !Sub arn:aws:lambda:${AWS::Region}:017000801446:layer:AWSLambdaPowertoolsPythonV3-python311-x86_64:7
+    Environment:
+      Variables:
+        ENVIRONMENT: !Ref Environment
+        DATA_BUCKET: !Ref DataBucketName
+        LOG_LEVEL: !Ref LogLevel
+        POWERTOOLS_SERVICE_NAME: bedrock-profiler
+        POWERTOOLS_LOG_LEVEL: !Ref LogLevel
+        POWERTOOLS_METRICS_NAMESPACE: BedrockProfiler
+        # AWS client configuration
+        AWS_CONNECT_TIMEOUT: !Ref AwsConnectTimeout
+        AWS_READ_TIMEOUT: !Ref AwsReadTimeout
+        AWS_MAX_RETRIES: !Ref AwsMaxRetries
+        # Cognito configuration
+        COGNITO_REGION: !Ref CognitoRegion
+        # EC2 configuration (for region discovery)
+        EC2_REGION: !Ref Ec2Region
+
+Resources:
+  #############################################
+  # Shared Lambda Layer
+  #############################################
+  SharedUtilsLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub '${AWS::StackName}-shared-utils'
+      Description: Shared utilities for Bedrock Model Profiler Lambda functions
+      ContentUri: ../backend/layers/common/
+      CompatibleRuntimes:
+        - python3.11
+      RetentionPolicy: Delete
+
+  #############################################
+  # Lambda Functions
+  #############################################
+
+  # Wave 1: Pricing Collection
+  PricingCollectorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-pricing-collector'
+      CodeUri: ../backend/lambdas/pricing-collector/
+      Handler: handler.lambda_handler
+      Timeout: 300
+      MemorySize: 512
+      Environment:
+        Variables:
+          PRICING_API_REGION: us-east-1
+          PRICING_MAX_BATCHES: !Ref PricingMaxBatches
+          PRICING_API_TIMEOUT: !Ref PricingApiTimeout
+          PRICING_THROTTLE_DELAY: !Ref PricingThrottleDelay
+          PRICING_RETRY_DELAY: !Ref PricingRetryDelay
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - pricing:GetProducts
+                - pricing:DescribeServices
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - s3:PutObject
+              Resource: !Sub 'arn:aws:s3:::${DataBucketName}/*'
+
+  PricingAggregatorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-pricing-aggregator'
+      CodeUri: ../backend/lambdas/pricing-aggregator/
+      Handler: handler.lambda_handler
+      Timeout: 120
+      MemorySize: 1024
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+              Resource: !Sub 'arn:aws:s3:::${DataBucketName}/*'
+
+  # Wave 1: Model Extraction
+  ModelExtractorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-model-extractor'
+      CodeUri: ../backend/lambdas/model-extractor/
+      Handler: handler.lambda_handler
+      Timeout: 60
+      MemorySize: 256
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:ListFoundationModels
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - s3:PutObject
+              Resource: !Sub 'arn:aws:s3:::${DataBucketName}/*'
+
+  ModelMergerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-model-merger'
+      CodeUri: ../backend/lambdas/model-merger/
+      Handler: handler.lambda_handler
+      Timeout: 60
+      MemorySize: 512
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+              Resource: !Sub 'arn:aws:s3:::${DataBucketName}/*'
+
+  # Wave 1: Quota Collection
+  QuotaCollectorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-quota-collector'
+      CodeUri: ../backend/lambdas/quota-collector/
+      Handler: handler.lambda_handler
+      Timeout: 60
+      MemorySize: 256
+      Environment:
+        Variables:
+          QUOTA_BATCH_SIZE: !Ref QuotaBatchSize
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - servicequotas:ListServiceQuotas
+                - servicequotas:GetServiceQuota
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - s3:PutObject
+              Resource: !Sub 'arn:aws:s3:::${DataBucketName}/*'
+
+  # Wave 2: Enrichment
+  PricingLinkerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-pricing-linker'
+      CodeUri: ../backend/lambdas/pricing-linker/
+      Handler: handler.lambda_handler
+      Timeout: 120
+      MemorySize: 1024
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+              Resource: !Sub 'arn:aws:s3:::${DataBucketName}/*'
+
+  RegionalAvailabilityFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-regional-availability'
+      CodeUri: ../backend/lambdas/regional-availability/
+      Handler: handler.lambda_handler
+      Timeout: 60
+      MemorySize: 512
+      Environment:
+        Variables:
+          AVAILABILITY_MAX_WORKERS: !Ref AvailabilityMaxWorkers
+          AVAILABILITY_REGION_TIMEOUT: !Ref AvailabilityRegionTimeout
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:ListFoundationModels
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+              Resource: !Sub 'arn:aws:s3:::${DataBucketName}/*'
+
+  FeatureCollectorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-feature-collector'
+      CodeUri: ../backend/lambdas/feature-collector/
+      Handler: handler.lambda_handler
+      Timeout: 60
+      MemorySize: 256
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:ListInferenceProfiles
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - s3:PutObject
+              Resource: !Sub 'arn:aws:s3:::${DataBucketName}/*'
+
+  RegionDiscoveryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-region-discovery'
+      CodeUri: ../backend/lambdas/region-discovery/
+      Handler: handler.lambda_handler
+      Timeout: 120
+      MemorySize: 256
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - ec2:DescribeRegions
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - bedrock:ListInferenceProfiles
+              Resource: '*'
+
+  TokenSpecsCollectorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-token-specs-collector'
+      CodeUri: ../backend/lambdas/token-specs-collector/
+      Handler: handler.lambda_handler
+      Timeout: 120
+      MemorySize: 512
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+              Resource: !Sub 'arn:aws:s3:::${DataBucketName}/*'
+
+  # Wave 2: Mantle Collection
+  MantleCollectorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-mantle-collector'
+      CodeUri: ../backend/lambdas/mantle-collector/
+      Handler: handler.lambda_handler
+      Timeout: 120
+      MemorySize: 256
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - bedrock-mantle:*
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - s3:PutObject
+              Resource: !Sub 'arn:aws:s3:::${DataBucketName}/*'
+
+  # Wave 2: Lifecycle Collection
+  LifecycleCollectorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-lifecycle-collector'
+      CodeUri: ../backend/lambdas/lifecycle-collector/
+      Handler: handler.lambda_handler
+      Timeout: 60
+      MemorySize: 256
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:PutObject
+              Resource: !Sub 'arn:aws:s3:::${DataBucketName}/*'
+
+  # Final Aggregation
+  FinalAggregatorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-final-aggregator'
+      CodeUri: ../backend/lambdas/final-aggregator/
+      Handler: handler.lambda_handler
+      Timeout: 180
+      MemorySize: 2048
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+              Resource: !Sub 'arn:aws:s3:::${DataBucketName}/*'
+
+  CopyToLatestFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-copy-to-latest'
+      CodeUri: ../backend/lambdas/copy-to-latest/
+      Handler: handler.lambda_handler
+      Timeout: 120
+      MemorySize: 512
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:CopyObject
+              Resource: !Sub 'arn:aws:s3:::${DataBucketName}/*'
+
+  # Cache Invalidator - Invalidates CloudFront cache after data update
+  CacheInvalidatorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-cache-invalidator'
+      CodeUri: ../backend/lambdas/cache-invalidator/
+      Handler: handler.lambda_handler
+      Timeout: 30
+      MemorySize: 128
+      Environment:
+        Variables:
+          CLOUDFRONT_DISTRIBUTION_ID: !If
+            - HasFrontendStack
+            - !ImportValue
+                Fn::Sub: '${FrontendStackName}-DistributionId'
+            - ''
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - cloudfront:CreateInvalidation
+              Resource: !If
+                - HasFrontendStack
+                - !Sub
+                  - 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${DistId}'
+                  - DistId: !ImportValue
+                      Fn::Sub: '${FrontendStackName}-DistributionId'
+                - !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/*'
+
+  # Gap Detection - Analyzes pipeline output for data gaps
+  GapDetectionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-gap-detection'
+      CodeUri: ../backend/lambdas/gap-detection/
+      Handler: handler.lambda_handler
+      Timeout: 120
+      MemorySize: 512
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+              Resource: !Sub 'arn:aws:s3:::${DataBucketName}/*'
+
+  # Self-Healing Agent - Uses Bedrock Claude to suggest config updates
+  SelfHealingAgentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-self-healing-agent'
+      CodeUri: ../backend/lambdas/self-healing-agent/
+      Handler: handler.lambda_handler
+      Timeout: 300
+      MemorySize: 1024
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+              Resource: !Sub 'arn:aws:s3:::${DataBucketName}/*'
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+              Resource:
+                # Cross-region inference profiles can route to any US region
+                - !Sub 'arn:aws:bedrock:*::foundation-model/anthropic.claude-*'
+                - !Sub 'arn:aws:bedrock:*::foundation-model/us.anthropic.claude-*'
+                - !Sub 'arn:aws:bedrock:*:${AWS::AccountId}:inference-profile/us.anthropic.claude-*'
+
+  # Config Sync Lambda - Syncs frontend config from backend profiler-config.json
+  ConfigSyncFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-config-sync'
+      CodeUri: ../backend/lambdas/config-sync/
+      Handler: handler.lambda_handler
+      Timeout: 60
+      MemorySize: 256
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref DataBucketName
+
+  #############################################
+  # Step Functions State Machine
+  #############################################
+  StateMachineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${AWS::StackName}-sfn-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeLambdaFunctions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !GetAtt PricingCollectorFunction.Arn
+                  - !GetAtt PricingAggregatorFunction.Arn
+                  - !GetAtt ModelExtractorFunction.Arn
+                  - !GetAtt ModelMergerFunction.Arn
+                  - !GetAtt QuotaCollectorFunction.Arn
+                  - !GetAtt PricingLinkerFunction.Arn
+                  - !GetAtt RegionalAvailabilityFunction.Arn
+                  - !GetAtt FeatureCollectorFunction.Arn
+                  - !GetAtt RegionDiscoveryFunction.Arn
+                  - !GetAtt TokenSpecsCollectorFunction.Arn
+                  - !GetAtt FinalAggregatorFunction.Arn
+                  - !GetAtt CopyToLatestFunction.Arn
+                  - !GetAtt CacheInvalidatorFunction.Arn
+                  - !GetAtt GapDetectionFunction.Arn
+                  - !GetAtt SelfHealingAgentFunction.Arn
+                  - !GetAtt MantleCollectorFunction.Arn
+                  - !GetAtt LifecycleCollectorFunction.Arn
+                  - !GetAtt ConfigSyncFunction.Arn
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogDelivery
+                  - logs:GetLogDelivery
+                  - logs:UpdateLogDelivery
+                  - logs:DeleteLogDelivery
+                  - logs:ListLogDeliveries
+                  - logs:PutResourcePolicy
+                  - logs:DescribeResourcePolicies
+                  - logs:DescribeLogGroups
+                Resource: '*'
+
+  StateMachineLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/stepfunctions/${AWS::StackName}'
+      RetentionInDays: 30
+
+  BedrockProfilerStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: !Sub '${AWS::StackName}-workflow'
+      DefinitionUri: ../backend/statemachine/bedrock-profiler.asl.json
+      DefinitionSubstitutions:
+        S3Bucket: !Ref DataBucketName
+        PricingCollectorFunction: !GetAtt PricingCollectorFunction.Arn
+        PricingAggregatorFunction: !GetAtt PricingAggregatorFunction.Arn
+        ModelExtractorFunction: !GetAtt ModelExtractorFunction.Arn
+        ModelMergerFunction: !GetAtt ModelMergerFunction.Arn
+        QuotaCollectorFunction: !GetAtt QuotaCollectorFunction.Arn
+        PricingLinkerFunction: !GetAtt PricingLinkerFunction.Arn
+        RegionalAvailabilityFunction: !GetAtt RegionalAvailabilityFunction.Arn
+        FeatureCollectorFunction: !GetAtt FeatureCollectorFunction.Arn
+        RegionDiscoveryFunction: !GetAtt RegionDiscoveryFunction.Arn
+        TokenSpecsCollectorFunction: !GetAtt TokenSpecsCollectorFunction.Arn
+        FinalAggregatorFunction: !GetAtt FinalAggregatorFunction.Arn
+        CopyToLatestFunction: !GetAtt CopyToLatestFunction.Arn
+        CacheInvalidatorFunction: !GetAtt CacheInvalidatorFunction.Arn
+        GapDetectionFunction: !GetAtt GapDetectionFunction.Arn
+        SelfHealingAgentFunction: !GetAtt SelfHealingAgentFunction.Arn
+        MantleCollectorFunction: !GetAtt MantleCollectorFunction.Arn
+        LifecycleCollectorFunction: !GetAtt LifecycleCollectorFunction.Arn
+        ConfigSyncFunction: !GetAtt ConfigSyncFunction.Arn
+      Role: !GetAtt StateMachineRole.Arn
+      Logging:
+        Destinations:
+          - CloudWatchLogsLogGroup:
+              LogGroupArn: !GetAtt StateMachineLogGroup.Arn
+        Level: ALL
+        IncludeExecutionData: true
+      Tracing:
+        Enabled: true
+
+  #############################################
+  # EventBridge Schedule (Daily Trigger)
+  #############################################
+  DailyScheduleRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${AWS::StackName}-schedule-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: StartStateMachine
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - states:StartExecution
+                Resource: !Ref BedrockProfilerStateMachine
+
+  DailySchedule:
+    Type: AWS::Scheduler::Schedule
+    Condition: ScheduleEnabledCondition
+    Properties:
+      Name: !Sub '${AWS::StackName}-daily'
+      Description: 'Daily execution of Bedrock Model Profiler workflow'
+      ScheduleExpression: 'cron(0 6,18 * * ? *)'  # 6 AM and 6 PM UTC daily
+      ScheduleExpressionTimezone: 'UTC'
+      FlexibleTimeWindow:
+        Mode: 'FLEXIBLE'
+        MaximumWindowInMinutes: 30
+      Target:
+        Arn: !Ref BedrockProfilerStateMachine
+        RoleArn: !GetAtt DailyScheduleRole.Arn
+        Input: '{}'
+      State: ENABLED
+
+Outputs:
+  StateMachineArn:
+    Description: ARN of the Step Functions state machine
+    Value: !Ref BedrockProfilerStateMachine
+    Export:
+      Name: !Sub '${AWS::StackName}-StateMachineArn'
+
+  DataBucketName:
+    Description: Name of the S3 data bucket (from frontend stack)
+    Value: !Ref DataBucketName
+
+  LatestModelsUrl:
+    Description: S3 URL for latest models JSON
+    Value: !Sub 's3://${DataBucketName}/latest/bedrock_models.json'
+
+  LatestPricingUrl:
+    Description: S3 URL for latest pricing JSON
+    Value: !Sub 's3://${DataBucketName}/latest/bedrock_pricing.json'
+
+  # Configuration outputs
+  LogLevel:
+    Description: Configured log level
+    Value: !Ref LogLevel
+
+  AvailabilityMaxWorkers:
+    Description: Max workers for availability checks
+    Value: !Ref AvailabilityMaxWorkers
+
+  QuotaBatchSize:
+    Description: Batch size for quota collection
+    Value: !Ref QuotaBatchSize
+
+  PricingMaxBatches:
+    Description: Max batches for pricing collection
+    Value: !Ref PricingMaxBatches

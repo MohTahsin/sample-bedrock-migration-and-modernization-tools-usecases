@@ -1,0 +1,1282 @@
+{
+  "version": "1.0.0-auto-updated-auto-updated",
+  "last_updated": "2026-02-04T16:29:46Z",
+  "external_urls": {
+    "pricing": {
+      "bulk_pricing_api": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/{service_code}/current/{region}/index.json",
+      "pricing_api_region": "us-east-1"
+    },
+    "documentation": {
+      "bedrock_models_supported": "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html",
+      "bedrock_pricing": "https://aws.amazon.com/bedrock/pricing/",
+      "bedrock_model_lifecycle": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle.html",
+      "bedrock_model_ids": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids-arns.html"
+    },
+    "external_data_sources": {
+      "litellm_model_prices": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
+      "litellm_model_prices_fallback": "https://raw.githubusercontent.com/BerriAI/litellm/main/litellm/model_prices_and_context_window_backup.json"
+    }
+  },
+  "provider_configuration": {
+    "provider_aliases": {
+      "amazon": [
+        "amazon",
+        "aws"
+      ],
+      "anthropic": [
+        "anthropic",
+        "claude"
+      ],
+      "meta": [
+        "meta",
+        "facebook"
+      ],
+      "mistral ai": [
+        "mistral",
+        "mistralai",
+        "mistral ai"
+      ],
+      "stability ai": [
+        "stability",
+        "stabilityai",
+        "stability ai",
+        "stable diffusion",
+        "stable-diffusion"
+      ],
+      "cohere": [
+        "cohere"
+      ],
+      "ai21 labs": [
+        "ai21",
+        "ai21labs",
+        "ai21 labs"
+      ],
+      "luma ai": [
+        "luma",
+        "lumaai",
+        "luma ai"
+      ],
+      "twelvelabs": [
+        "twelvelabs",
+        "twelve labs",
+        "twelverlabs"
+      ],
+      "minimax": [
+        "minimax",
+        "minimax ai",
+        "minimax-ai"
+      ],
+      "moonshot ai": [
+        "moonshot",
+        "moonshot ai",
+        "kimi",
+        "kimi ai",
+        "kimi-ai",
+        "moonshotai"
+      ],
+      "deepseek": [
+        "deepseek"
+      ],
+      "qwen": [
+        "qwen",
+        "qwen2",
+        "alibaba"
+      ],
+      "google": [
+        "google"
+      ],
+      "openai": [
+        "openai"
+      ],
+      "writer": [
+        "writer"
+      ],
+      "nvidia": [
+        "nvidia",
+        "nvidia ai",
+        "nvidia corporation",
+        "nemotron"
+      ]
+    },
+    "provider_patterns": {
+      "Amazon": [
+        "titan",
+        "nova",
+        "amazon-bedrock",
+        "rerank"
+      ],
+      "Anthropic": [
+        "claude",
+        "anthropic",
+        "sonnet",
+        "haiku",
+        "opus"
+      ],
+      "Meta": [
+        "llama",
+        "mllama"
+      ],
+      "Mistral AI": [
+        "mistral",
+        "mixtral",
+        "ministral",
+        "magistral",
+        "pixtral",
+        "voxtral"
+      ],
+      "Cohere": [
+        "cohere",
+        "command",
+        "embed"
+      ],
+      "AI21 Labs": [
+        "ai21",
+        "jamba",
+        "jurassic"
+      ],
+      "Stability AI": [
+        "stable",
+        "stability",
+        "sdxl",
+        "upscale",
+        "remove-background",
+        "conservative"
+      ],
+      "Luma AI": [
+        "luma",
+        "ray"
+      ],
+      "Writer": [
+        "writer",
+        "palmyra"
+      ],
+      "Qwen": [
+        "qwen"
+      ],
+      "OpenAI": [
+        "gpt",
+        "openai"
+      ],
+      "DeepSeek": [
+        "deepseek",
+        "r1"
+      ],
+      "Google": [
+        "gemma",
+        "gemini"
+      ],
+      "TwelveLabs": [
+        "twelve",
+        "twelvelabs",
+        "marengo",
+        "pegasus"
+      ],
+      "MiniMax": [
+        "minimax"
+      ],
+      "Moonshot AI": [
+        "kimi",
+        "moonshot",
+        "moonshotai"
+      ],
+      "NVIDIA": [
+        "nvidia",
+        "nemotron",
+        "nano"
+      ]
+    },
+    "explicit_provider_names": {
+      "twelvelabs": "TwelveLabs",
+      "twelve labs": "TwelveLabs",
+      "cohere": "Cohere",
+      "luma ai": "Luma AI",
+      "luma": "Luma AI",
+      "anthropic": "Anthropic",
+      "stability ai": "Stability AI",
+      "ai21 labs": "AI21 Labs",
+      "ai21": "AI21 Labs",
+      "mistral ai": "Mistral AI",
+      "mistral": "Mistral AI",
+      "deepseek": "DeepSeek",
+      "writer": "Writer",
+      "meta": "Meta",
+      "amazon": "Amazon",
+      "google": "Google",
+      "openai": "OpenAI",
+      "qwen": "Qwen",
+      "minimax": "MiniMax",
+      "minimax ai": "MiniMax",
+      "z ai": "Z.AI",
+      "zai": "Z.AI",
+      "z.ai": "Z.AI"
+    },
+    "provider_colors": {
+      "Amazon": "#FF9900",
+      "Anthropic": "#D97757",
+      "Meta": "#0082FB",
+      "Mistral AI": "#F54E42",
+      "Mistral": "#F54E42",
+      "Cohere": "#39594D",
+      "AI21 Labs": "#6C5CE7",
+      "AI21": "#6C5CE7",
+      "Stability AI": "#7C5CFF",
+      "Stability": "#7C5CFF",
+      "Luma AI": "#6366F1",
+      "Luma": "#6366F1",
+      "Writer": "#009BFF",
+      "NVIDIA": "#76B900",
+      "DeepSeek": "#4D6BFE",
+      "Qwen": "#615EFF",
+      "Google": "#4285F4",
+      "OpenAI": "#10A37F",
+      "TwelveLabs": "#FF5733",
+      "MiniMax": "#00D4AA",
+      "Moonshot AI": "#5B6EF7",
+      "Z.AI": "#FF6B35",
+      "default": "#64748b"
+    },
+    "documentation_links": {
+      "Anthropic": {
+        "aws_bedrock_guide": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-claude.html",
+        "pricing_guide": "https://aws.amazon.com/bedrock/pricing/",
+        "provider_guide": "https://docs.anthropic.com/en/docs/intro-to-claude"
+      },
+      "Amazon": {
+        "aws_bedrock_guide": "https://docs.aws.amazon.com/bedrock/latest/userguide/titan-models.html",
+        "pricing_guide": "https://aws.amazon.com/bedrock/pricing/",
+        "provider_guide": "https://docs.aws.amazon.com/bedrock/latest/userguide/titan-models.html"
+      },
+      "Meta": {
+        "aws_bedrock_guide": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-meta.html",
+        "pricing_guide": "https://aws.amazon.com/bedrock/pricing/",
+        "provider_guide": "https://llama.meta.com/docs/"
+      },
+      "Mistral AI": {
+        "aws_bedrock_guide": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-mistral.html",
+        "pricing_guide": "https://aws.amazon.com/bedrock/pricing/",
+        "provider_guide": "https://docs.mistral.ai/"
+      },
+      "Cohere": {
+        "aws_bedrock_guide": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-cohere.html",
+        "pricing_guide": "https://aws.amazon.com/bedrock/pricing/",
+        "provider_guide": "https://docs.cohere.com/"
+      },
+      "AI21 Labs": {
+        "aws_bedrock_guide": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-ai21.html",
+        "pricing_guide": "https://aws.amazon.com/bedrock/pricing/",
+        "provider_guide": "https://docs.ai21.com/"
+      },
+      "Stability AI": {
+        "aws_bedrock_guide": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-stability-diffusion.html",
+        "pricing_guide": "https://aws.amazon.com/bedrock/pricing/",
+        "provider_guide": "https://platform.stability.ai/docs"
+      },
+      "DeepSeek": {
+        "aws_bedrock_guide": "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html",
+        "pricing_guide": "https://aws.amazon.com/bedrock/pricing/",
+        "provider_guide": "https://api-docs.deepseek.com/"
+      },
+      "Google": {
+        "aws_bedrock_guide": "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html",
+        "pricing_guide": "https://aws.amazon.com/bedrock/pricing/",
+        "provider_guide": "https://ai.google.dev/gemini-api/docs"
+      },
+      "Luma AI": {
+        "aws_bedrock_guide": "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html",
+        "pricing_guide": "https://aws.amazon.com/bedrock/pricing/",
+        "provider_guide": "https://docs.lumalabs.ai/"
+      },
+      "MiniMax": {
+        "aws_bedrock_guide": "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html",
+        "pricing_guide": "https://aws.amazon.com/bedrock/pricing/",
+        "provider_guide": "https://platform.minimaxi.com/document/introduction"
+      },
+      "Moonshot AI": {
+        "aws_bedrock_guide": "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html",
+        "pricing_guide": "https://aws.amazon.com/bedrock/pricing/",
+        "provider_guide": "https://platform.moonshot.ai/docs"
+      },
+      "NVIDIA": {
+        "aws_bedrock_guide": "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html",
+        "pricing_guide": "https://aws.amazon.com/bedrock/pricing/",
+        "provider_guide": "https://docs.nvidia.com/nim/"
+      },
+      "OpenAI": {
+        "aws_bedrock_guide": "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html",
+        "pricing_guide": "https://aws.amazon.com/bedrock/pricing/",
+        "provider_guide": "https://platform.openai.com/docs"
+      },
+      "Qwen": {
+        "aws_bedrock_guide": "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html",
+        "pricing_guide": "https://aws.amazon.com/bedrock/pricing/",
+        "provider_guide": "https://qwen.readthedocs.io/"
+      },
+      "TwelveLabs": {
+        "aws_bedrock_guide": "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html",
+        "pricing_guide": "https://aws.amazon.com/bedrock/pricing/",
+        "provider_guide": "https://docs.twelvelabs.io/"
+      },
+      "Writer": {
+        "aws_bedrock_guide": "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html",
+        "pricing_guide": "https://aws.amazon.com/bedrock/pricing/",
+        "provider_guide": "https://dev.writer.com/docs"
+      },
+      "Z.AI": {
+        "aws_bedrock_guide": "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html",
+        "pricing_guide": "https://aws.amazon.com/bedrock/pricing/",
+        "provider_guide": "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html"
+      },
+      "nova": {
+        "aws_bedrock_guide": "https://docs.aws.amazon.com/nova/latest/userguide/what-is-nova.html",
+        "pricing_guide": "https://aws.amazon.com/bedrock/pricing/",
+        "provider_guide": "https://docs.aws.amazon.com/nova/latest/userguide/what-is-nova.html"
+      },
+      "default": {
+        "aws_bedrock_guide": "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html",
+        "pricing_guide": "https://aws.amazon.com/bedrock/pricing/",
+        "provider_guide": "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html"
+      }
+    }
+  },
+  "region_configuration": {
+    "model_regions": [
+      "us-east-1",
+      "us-west-2"
+    ],
+    "quota_regions": [
+      "us-east-1",
+      "us-west-2",
+      "us-east-2",
+      "eu-west-1",
+      "eu-west-2",
+      "eu-west-3",
+      "eu-central-1",
+      "eu-north-1",
+      "ap-southeast-1",
+      "ap-southeast-2",
+      "ap-southeast-3",
+      "ap-northeast-1",
+      "ap-northeast-2",
+      "ap-south-1",
+      "ca-central-1",
+      "sa-east-1"
+    ],
+    "feature_regions": [
+      "us-east-1",
+      "us-east-2",
+      "us-west-1",
+      "us-west-2",
+      "eu-west-1",
+      "eu-west-2",
+      "eu-west-3",
+      "eu-central-1",
+      "eu-central-2",
+      "eu-north-1",
+      "eu-south-1",
+      "eu-south-2",
+      "ap-northeast-1",
+      "ap-northeast-2",
+      "ap-northeast-3",
+      "ap-south-1",
+      "ap-south-2",
+      "ap-southeast-1",
+      "ap-southeast-2",
+      "ap-southeast-3",
+      "ap-southeast-4",
+      "ca-central-1",
+      "ca-west-1",
+      "sa-east-1",
+      "af-south-1",
+      "me-central-1",
+      "il-central-1"
+    ],
+    "region_locations": {
+      "us-east-1": "US East (N. Virginia)",
+      "us-east-2": "US East (Ohio)",
+      "us-west-1": "US West (N. California)",
+      "us-west-2": "US West (Oregon)",
+      "eu-west-1": "Europe (Ireland)",
+      "eu-west-2": "Europe (London)",
+      "eu-west-3": "Europe (Paris)",
+      "eu-central-1": "Europe (Frankfurt)",
+      "eu-central-2": "Europe (Zurich)",
+      "eu-north-1": "Europe (Stockholm)",
+      "eu-south-1": "Europe (Milan)",
+      "eu-south-2": "Europe (Spain)",
+      "ap-northeast-1": "Asia Pacific (Tokyo)",
+      "ap-northeast-2": "Asia Pacific (Seoul)",
+      "ap-northeast-3": "Asia Pacific (Osaka)",
+      "ap-southeast-1": "Asia Pacific (Singapore)",
+      "ap-southeast-2": "Asia Pacific (Sydney)",
+      "ap-southeast-3": "Asia Pacific (Jakarta)",
+      "ap-southeast-4": "Asia Pacific (Melbourne)",
+      "ap-southeast-5": "Asia Pacific (Malaysia)",
+      "ap-south-1": "Asia Pacific (Mumbai)",
+      "ap-south-2": "Asia Pacific (Hyderabad)",
+      "ap-east-1": "Asia Pacific (Hong Kong)",
+      "sa-east-1": "South America (Sao Paulo)",
+      "ca-central-1": "Canada (Central)",
+      "ca-west-1": "Canada West (Calgary)",
+      "me-south-1": "Middle East (Bahrain)",
+      "me-central-1": "Middle East (UAE)",
+      "il-central-1": "Israel (Tel Aviv)",
+      "af-south-1": "Africa (Cape Town)",
+      "ap-east-2": "Asia Pacific (Taipei)",
+      "ap-southeast-6": "Asia Pacific (Auckland)",
+      "ap-southeast-7": "Asia Pacific (Thailand)",
+      "mx-central-1": "Mexico (Mexico City)"
+    },
+    "region_coordinates": {
+      "us-east-1": {
+        "lat": 38.9519,
+        "lng": -77.448,
+        "name": "N. Virginia",
+        "geo": "US",
+        "iata": "IAD"
+      },
+      "us-east-2": {
+        "lat": 39.9612,
+        "lng": -82.9988,
+        "name": "Ohio",
+        "geo": "US",
+        "iata": "CMH"
+      },
+      "us-west-1": {
+        "lat": 37.3541,
+        "lng": -121.9552,
+        "name": "N. California",
+        "geo": "US",
+        "iata": "SFO"
+      },
+      "us-west-2": {
+        "lat": 45.8696,
+        "lng": -119.688,
+        "name": "Oregon",
+        "geo": "US",
+        "iata": "PDX"
+      },
+      "eu-west-1": {
+        "lat": 53.3498,
+        "lng": -6.2603,
+        "name": "Ireland",
+        "geo": "EU",
+        "iata": "DUB"
+      },
+      "eu-west-2": {
+        "lat": 51.5074,
+        "lng": -0.1278,
+        "name": "London",
+        "geo": "EU",
+        "iata": "LHR"
+      },
+      "eu-west-3": {
+        "lat": 48.8566,
+        "lng": 2.3522,
+        "name": "Paris",
+        "geo": "EU",
+        "iata": "CDG"
+      },
+      "eu-central-1": {
+        "lat": 50.1109,
+        "lng": 8.6821,
+        "name": "Frankfurt",
+        "geo": "EU",
+        "iata": "FRA"
+      },
+      "eu-central-2": {
+        "lat": 47.3769,
+        "lng": 8.5417,
+        "name": "Zurich",
+        "geo": "EU",
+        "iata": "ZRH"
+      },
+      "eu-north-1": {
+        "lat": 59.3293,
+        "lng": 18.0686,
+        "name": "Stockholm",
+        "geo": "EU",
+        "iata": "ARN"
+      },
+      "eu-south-1": {
+        "lat": 45.4642,
+        "lng": 9.19,
+        "name": "Milan",
+        "geo": "EU",
+        "iata": "MXP"
+      },
+      "eu-south-2": {
+        "lat": 40.4168,
+        "lng": -3.7038,
+        "name": "Spain",
+        "geo": "EU",
+        "iata": "ZAZ"
+      },
+      "ap-south-1": {
+        "lat": 19.076,
+        "lng": 72.8777,
+        "name": "Mumbai",
+        "geo": "AP",
+        "iata": "BOM"
+      },
+      "ap-south-2": {
+        "lat": 17.385,
+        "lng": 78.4867,
+        "name": "Hyderabad",
+        "geo": "AP",
+        "iata": "HYD"
+      },
+      "ap-northeast-1": {
+        "lat": 35.6762,
+        "lng": 139.6503,
+        "name": "Tokyo",
+        "geo": "AP",
+        "iata": "NRT"
+      },
+      "ap-northeast-2": {
+        "lat": 37.5665,
+        "lng": 126.978,
+        "name": "Seoul",
+        "geo": "AP",
+        "iata": "ICN"
+      },
+      "ap-northeast-3": {
+        "lat": 34.6937,
+        "lng": 135.5023,
+        "name": "Osaka",
+        "geo": "AP",
+        "iata": "KIX"
+      },
+      "ap-southeast-1": {
+        "lat": 1.3521,
+        "lng": 103.8198,
+        "name": "Singapore",
+        "geo": "AP",
+        "iata": "SIN"
+      },
+      "ap-southeast-2": {
+        "lat": -33.8688,
+        "lng": 151.2093,
+        "name": "Sydney",
+        "geo": "AP",
+        "iata": "SYD"
+      },
+      "ap-southeast-3": {
+        "lat": -6.2088,
+        "lng": 106.8456,
+        "name": "Jakarta",
+        "geo": "AP",
+        "iata": "CGK"
+      },
+      "ap-southeast-4": {
+        "lat": -37.8136,
+        "lng": 144.9631,
+        "name": "Melbourne",
+        "geo": "AP",
+        "iata": "MEL"
+      },
+      "ap-southeast-5": {
+        "lat": 3.139,
+        "lng": 101.6869,
+        "name": "Malaysia",
+        "geo": "AP",
+        "iata": "KUL"
+      },
+      "ap-east-1": {
+        "lat": 22.3193,
+        "lng": 114.1694,
+        "name": "Hong Kong",
+        "geo": "AP",
+        "iata": "HKG"
+      },
+      "ca-central-1": {
+        "lat": 45.5017,
+        "lng": -73.5673,
+        "name": "Montreal",
+        "geo": "CA",
+        "iata": "YUL"
+      },
+      "ca-west-1": {
+        "lat": 51.0447,
+        "lng": -114.0719,
+        "name": "Calgary",
+        "geo": "CA",
+        "iata": "YYC"
+      },
+      "sa-east-1": {
+        "lat": -23.5505,
+        "lng": -46.6333,
+        "name": "São Paulo",
+        "geo": "SA",
+        "iata": "GRU"
+      },
+      "me-south-1": {
+        "lat": 26.0667,
+        "lng": 50.5577,
+        "name": "Bahrain",
+        "geo": "ME",
+        "iata": "BAH"
+      },
+      "me-central-1": {
+        "lat": 24.4539,
+        "lng": 54.3773,
+        "name": "UAE",
+        "geo": "ME",
+        "iata": "DXB"
+      },
+      "il-central-1": {
+        "lat": 32.0853,
+        "lng": 34.7818,
+        "name": "Tel Aviv",
+        "geo": "ME",
+        "iata": "TLV"
+      },
+      "af-south-1": {
+        "lat": -33.9249,
+        "lng": 18.4241,
+        "name": "Cape Town",
+        "geo": "AF",
+        "iata": "CPT"
+      },
+      "ap-east-2": {
+        "lat": 25.033,
+        "lng": 121.5654,
+        "name": "Taipei",
+        "geo": "AP",
+        "iata": "TPE"
+      },
+      "ap-southeast-6": {
+        "lat": -36.8485,
+        "lng": 174.7633,
+        "name": "Auckland",
+        "geo": "AP",
+        "iata": "AKL"
+      },
+      "ap-southeast-7": {
+        "lat": 13.7563,
+        "lng": 100.5018,
+        "name": "Bangkok",
+        "geo": "AP",
+        "iata": "BKK"
+      },
+      "mx-central-1": {
+        "lat": 19.4326,
+        "lng": -99.1332,
+        "name": "Mexico City",
+        "geo": "SA",
+        "iata": "QRO"
+      },
+      "us-gov-west-1": {
+        "lat": 45.8696,
+        "lng": -119.688,
+        "name": "GovCloud (US-West)",
+        "geo": "GOV",
+        "iata": "PDT"
+      },
+      "us-gov-east-1": {
+        "lat": 38.9519,
+        "lng": -77.448,
+        "name": "GovCloud (US-East)",
+        "geo": "GOV",
+        "iata": "OSU"
+      }
+    },
+    "aws_regions": [
+      {
+        "value": "us-east-1",
+        "label": "N. Virginia (us-east-1)",
+        "geo": "US"
+      },
+      {
+        "value": "us-east-2",
+        "label": "Ohio (us-east-2)",
+        "geo": "US"
+      },
+      {
+        "value": "us-west-1",
+        "label": "N. California (us-west-1)",
+        "geo": "US"
+      },
+      {
+        "value": "us-west-2",
+        "label": "Oregon (us-west-2)",
+        "geo": "US"
+      },
+      {
+        "value": "eu-west-1",
+        "label": "Ireland (eu-west-1)",
+        "geo": "EU"
+      },
+      {
+        "value": "eu-west-2",
+        "label": "London (eu-west-2)",
+        "geo": "EU"
+      },
+      {
+        "value": "eu-west-3",
+        "label": "Paris (eu-west-3)",
+        "geo": "EU"
+      },
+      {
+        "value": "eu-central-1",
+        "label": "Frankfurt (eu-central-1)",
+        "geo": "EU"
+      },
+      {
+        "value": "eu-central-2",
+        "label": "Zurich (eu-central-2)",
+        "geo": "EU"
+      },
+      {
+        "value": "eu-north-1",
+        "label": "Stockholm (eu-north-1)",
+        "geo": "EU"
+      },
+      {
+        "value": "eu-south-1",
+        "label": "Milan (eu-south-1)",
+        "geo": "EU"
+      },
+      {
+        "value": "eu-south-2",
+        "label": "Spain (eu-south-2)",
+        "geo": "EU"
+      },
+      {
+        "value": "ap-northeast-1",
+        "label": "Tokyo (ap-northeast-1)",
+        "geo": "AP"
+      },
+      {
+        "value": "ap-northeast-2",
+        "label": "Seoul (ap-northeast-2)",
+        "geo": "AP"
+      },
+      {
+        "value": "ap-northeast-3",
+        "label": "Osaka (ap-northeast-3)",
+        "geo": "AP"
+      },
+      {
+        "value": "ap-southeast-1",
+        "label": "Singapore (ap-southeast-1)",
+        "geo": "AP"
+      },
+      {
+        "value": "ap-southeast-2",
+        "label": "Sydney (ap-southeast-2)",
+        "geo": "AP"
+      },
+      {
+        "value": "ap-southeast-3",
+        "label": "Jakarta (ap-southeast-3)",
+        "geo": "AP"
+      },
+      {
+        "value": "ap-southeast-4",
+        "label": "Melbourne (ap-southeast-4)",
+        "geo": "AP"
+      },
+      {
+        "value": "ap-southeast-5",
+        "label": "Malaysia (ap-southeast-5)",
+        "geo": "AP"
+      },
+      {
+        "value": "ap-south-1",
+        "label": "Mumbai (ap-south-1)",
+        "geo": "AP"
+      },
+      {
+        "value": "ap-south-2",
+        "label": "Hyderabad (ap-south-2)",
+        "geo": "AP"
+      },
+      {
+        "value": "ap-east-1",
+        "label": "Hong Kong (ap-east-1)",
+        "geo": "AP"
+      },
+      {
+        "value": "ca-central-1",
+        "label": "Montreal (ca-central-1)",
+        "geo": "CA"
+      },
+      {
+        "value": "ca-west-1",
+        "label": "Calgary (ca-west-1)",
+        "geo": "CA"
+      },
+      {
+        "value": "sa-east-1",
+        "label": "Sao Paulo (sa-east-1)",
+        "geo": "SA"
+      },
+      {
+        "value": "me-south-1",
+        "label": "Bahrain (me-south-1)",
+        "geo": "ME"
+      },
+      {
+        "value": "me-central-1",
+        "label": "UAE (me-central-1)",
+        "geo": "ME"
+      },
+      {
+        "value": "il-central-1",
+        "label": "Tel Aviv (il-central-1)",
+        "geo": "ME"
+      },
+      {
+        "value": "af-south-1",
+        "label": "Cape Town (af-south-1)",
+        "geo": "AF"
+      },
+      {
+        "value": "ap-east-2",
+        "label": "Taipei (ap-east-2)",
+        "geo": "AP"
+      },
+      {
+        "value": "ap-southeast-6",
+        "label": "Auckland (ap-southeast-6)",
+        "geo": "AP"
+      },
+      {
+        "value": "ap-southeast-7",
+        "label": "Thailand (ap-southeast-7)",
+        "geo": "AP"
+      },
+      {
+        "value": "mx-central-1",
+        "label": "Mexico City (mx-central-1)",
+        "geo": "SA"
+      },
+      {
+        "value": "us-gov-west-1",
+        "label": "GovCloud US-West (us-gov-west-1)",
+        "geo": "GOV"
+      },
+      {
+        "value": "us-gov-east-1",
+        "label": "GovCloud US-East (us-gov-east-1)",
+        "geo": "GOV"
+      }
+    ],
+    "geo_region_options": [
+      {
+        "value": "All Regions",
+        "label": "All Regions"
+      },
+      {
+        "value": "US",
+        "label": "US Regions"
+      },
+      {
+        "value": "EU",
+        "label": "EU Regions"
+      },
+      {
+        "value": "AP",
+        "label": "Asia Pacific"
+      },
+      {
+        "value": "CA",
+        "label": "Canada"
+      },
+      {
+        "value": "SA",
+        "label": "South America"
+      },
+      {
+        "value": "ME",
+        "label": "Middle East"
+      },
+      {
+        "value": "AF",
+        "label": "Africa"
+      },
+      {
+        "value": "GOV",
+        "label": "GovCloud"
+      }
+    ],
+    "geo_prefix_map": {
+      "US": "us-",
+      "EU": "eu-",
+      "AP": "ap-",
+      "CA": "ca-",
+      "SA": "sa-",
+      "ME": "me-",
+      "AF": "af-",
+      "GOV": "us-gov-"
+    }
+  },
+  "govcloud_configuration": {
+    "govcloud_regions": [
+      "us-gov-west-1",
+      "us-gov-east-1"
+    ],
+    "govcloud_cris_models": [
+      "claude-3-haiku",
+      "claude-3.5-sonnet",
+      "claude-3-5-sonnet"
+    ],
+    "description": "Models matching these patterns will be marked as CRIS in GovCloud regions. All other GovCloud models default to In-Region."
+  },
+  "model_configuration": {
+    "model_families": [
+      "claude",
+      "titan",
+      "nova",
+      "llama",
+      "mistral",
+      "command",
+      "embed",
+      "jamba",
+      "stable"
+    ],
+    "model_variants": [
+      "haiku",
+      "sonnet",
+      "opus",
+      "lite",
+      "pro",
+      "micro",
+      "premier",
+      "express",
+      "large",
+      "small",
+      "medium",
+      "instant",
+      "chat",
+      "instruct",
+      "ultra",
+      "canvas",
+      "reel"
+    ],
+    "claude_variants": [
+      "haiku",
+      "sonnet",
+      "opus"
+    ],
+    "nova_variants": [
+      "micro",
+      "lite",
+      "pro",
+      "premier",
+      "canvas",
+      "reel",
+      "sonic"
+    ],
+    "llama_sizes": [
+      "8b",
+      "70b",
+      "405b",
+      "11b",
+      "90b",
+      "1b",
+      "3b"
+    ],
+    "capability_keywords": [
+      "code",
+      "codestral",
+      "devstral"
+    ],
+    "reasoning_models": [
+      "claude",
+      "sonnet",
+      "opus",
+      "nova",
+      "llama",
+      "mistral",
+      "command"
+    ],
+    "function_calling_models": [
+      "claude",
+      "nova",
+      "llama-3",
+      "mistral",
+      "command-r"
+    ],
+    "hidden_models": [],
+    "context_window_thresholds": {
+      "small": 32000,
+      "medium": 128000,
+      "large": 500000
+    },
+    "context_window_specs": {
+      "_comment": "Context window specifications from Anthropic docs and AWS. Extended context requires beta header: context-1m-2025-08-07",
+      "anthropic.claude-opus-4-6": {
+        "standard_context": 200000,
+        "extended_context": 1000000,
+        "max_output": 128000,
+        "extended_context_beta": "context-1m-2025-08-07",
+        "source": "anthropic_docs"
+      },
+      "anthropic.claude-sonnet-4-5": {
+        "standard_context": 200000,
+        "extended_context": 1000000,
+        "max_output": 64000,
+        "extended_context_beta": "context-1m-2025-08-07",
+        "source": "anthropic_docs"
+      },
+      "anthropic.claude-sonnet-4": {
+        "standard_context": 200000,
+        "extended_context": 1000000,
+        "max_output": 64000,
+        "extended_context_beta": "context-1m-2025-08-07",
+        "source": "anthropic_docs"
+      },
+      "anthropic.claude-opus-4-5": {
+        "standard_context": 200000,
+        "max_output": 64000,
+        "source": "anthropic_docs"
+      },
+      "anthropic.claude-opus-4-1": {
+        "standard_context": 200000,
+        "max_output": 32000,
+        "source": "anthropic_docs"
+      },
+      "anthropic.claude-opus-4": {
+        "standard_context": 200000,
+        "max_output": 32000,
+        "source": "anthropic_docs"
+      },
+      "anthropic.claude-haiku-4-5": {
+        "standard_context": 200000,
+        "max_output": 64000,
+        "source": "anthropic_docs"
+      },
+      "anthropic.claude-3-7-sonnet": {
+        "standard_context": 200000,
+        "max_output": 64000,
+        "extended_output": 128000,
+        "extended_output_beta": "output-128k-2025-02-19",
+        "source": "anthropic_docs"
+      },
+      "anthropic.claude-3-5-sonnet": {
+        "standard_context": 200000,
+        "max_output": 8192,
+        "source": "anthropic_docs"
+      },
+      "anthropic.claude-3-5-haiku": {
+        "standard_context": 200000,
+        "max_output": 8192,
+        "source": "anthropic_docs"
+      },
+      "anthropic.claude-3-opus": {
+        "standard_context": 200000,
+        "max_output": 4096,
+        "source": "anthropic_docs"
+      },
+      "anthropic.claude-3-sonnet": {
+        "standard_context": 200000,
+        "max_output": 4096,
+        "source": "anthropic_docs"
+      },
+      "anthropic.claude-3-haiku": {
+        "standard_context": 200000,
+        "max_output": 4096,
+        "source": "anthropic_docs"
+      },
+      "amazon.nova-premier": {
+        "standard_context": 300000,
+        "extended_context": 1000000,
+        "max_output": 5000,
+        "source": "aws_api"
+      },
+      "amazon.nova-pro": {
+        "standard_context": 300000,
+        "max_output": 5000,
+        "source": "aws_api"
+      },
+      "amazon.nova-lite": {
+        "standard_context": 300000,
+        "max_output": 5000,
+        "source": "aws_api"
+      },
+      "amazon.nova-micro": {
+        "standard_context": 128000,
+        "max_output": 5000,
+        "source": "aws_api"
+      },
+      "meta.llama3-1": {
+        "standard_context": 128000,
+        "max_output": 2048,
+        "source": "litellm"
+      },
+      "meta.llama3-2": {
+        "standard_context": 128000,
+        "max_output": 2048,
+        "source": "litellm"
+      },
+      "meta.llama3-3": {
+        "standard_context": 128000,
+        "max_output": 2048,
+        "source": "litellm"
+      },
+      "mistral.mistral-large": {
+        "standard_context": 128000,
+        "max_output": 8192,
+        "source": "litellm"
+      },
+      "ai21.jamba-1-5": {
+        "standard_context": 256000,
+        "max_output": 4096,
+        "source": "litellm"
+      },
+      "cohere.command-r-plus": {
+        "standard_context": 128000,
+        "max_output": 4096,
+        "source": "litellm"
+      },
+      "cohere.command-r": {
+        "standard_context": 128000,
+        "max_output": 4096,
+        "source": "litellm"
+      },
+      "deepseek.r1": {
+        "standard_context": 64000,
+        "max_output": 8192,
+        "source": "litellm"
+      },
+      "deepseek.v3": {
+        "standard_context": 64000,
+        "max_output": 8192,
+        "source": "litellm"
+      }
+    }
+  },
+  "matching_configuration": {
+    "explicit_model_mappings": {
+      "anthropic.claude-opus-4-5-20251101-v1:0": "anthropic.claude-opus-4-5",
+      "anthropic.claude-opus-4-6-v1:0": "anthropic.claude-opus-4-6",
+      "anthropic.claude-opus-4-1-20250805-v1:0": "anthropic.claude-opus-4-1",
+      "anthropic.claude-opus-4-20250514-v1:0": "anthropic.claude-opus-4",
+      "anthropic.claude-sonnet-4-5-20250929-v1:0": "anthropic.claude-sonnet-4-5",
+      "anthropic.claude-sonnet-4-20250514-v1:0": "anthropic.claude-sonnet-4",
+      "anthropic.claude-sonnet-4-6:0": "anthropic.claude-sonnet-4-6",
+      "anthropic.claude-haiku-4-5-20251001-v1:0": "anthropic.claude-haiku-4-5",
+      "moonshotai.kimi-k2.5-v1:0": "moonshot-ai.kimi-k2-5",
+      "mistral.mixtral-8x7b-instruct-v0:0": "mistral-ai.mixtral-8x7b",
+      "mistral.ministral-3-14b-instruct:0": "mistral-ai.ministral-14b-3-0",
+      "mistral.ministral-3-8b-instruct:0": "mistral-ai.ministral-8b-3-0",
+      "mistral.ministral-3-3b-instruct:0": "mistral-ai.ministral-3b-3-0",
+      "mistral.pixtral-large-2502-v1:0": "mistral-ai.pixtral-large-25-02",
+      "mistral.magistral-small-2509:0": "mistral-ai.magistral-small-1-2",
+      "mistral.voxtral-mini-3b-2507:0": "mistral-ai.voxtral-mini-1-0",
+      "mistral.voxtral-small-24b-2507:0": "mistral-ai.voxtral-small-1-0",
+      "mistral.devstral-2-123b:0": "mistral-ai.devstral",
+      "mistral.mistral-large-3-675b-instruct:0": "mistral-ai.mistral-large-3",
+      "mistral.mistral-7b-instruct-v0:0": "mistral-ai.mistral-7b",
+      "mistral.mistral-large-2402-v1:0": "mistral-ai.mistral-large",
+      "mistral.mistral-large-2407-v1:0": "mistral-ai.mistral-large-2407",
+      "mistral.mistral-small-2402-v1:0": "mistral-ai.mistral-small",
+      "zai.glm-4.6": "z.ai.glm-4-6",
+      "zai.glm-4.7:0": "z.ai.glm-4-7",
+      "zai.glm-4.7-flash:0": "z.ai.glm-4-7-flash",
+      "zai.glm-5": "z.ai.glm-5",
+      "deepseek.v3-v1:0": "deepseek.deepseek-v3-1",
+      "deepseek.r1-v1:0": "deepseek.r1",
+      "deepseek.v3.2:0": "deepseek.deepseek-v3-2",
+      "ai21.jamba-1-5-large-v1:0": "ai21-labs.jamba-1-5-large",
+      "ai21.jamba-1-5-mini-v1:0": "ai21-labs.jamba-1-5-mini",
+      "stability.sd3-5-large-v1:0": "stability-ai.stable-diffusion-3-5-large-v1-0",
+      "stability.stable-image-core-v1:0": "stability-ai.stable-image-core",
+      "stability.stable-image-ultra-v1:0": "stability-ai.stable-image-ultra",
+      "luma.ray-v2:0": "luma-ai.ray-v2",
+      "moonshotai.kimi-k2.5:0": "moonshot-ai.kimi-k2-5",
+      "moonshot.kimi-k2-thinking:0": "moonshot-ai.kimi-k2-thinking",
+      "zai.glm-4.7-v1:0": "z.ai.glm-4-7",
+      "zai.glm-4.7-flash-v1:0": "z.ai.glm-4-7-flash"
+    },
+    "min_confidence_threshold": 0.7,
+    "size_variance_threshold": 0.3,
+    "suffixes_to_remove": [
+      "-it",
+      "-instruct",
+      "-chat",
+      "-v1",
+      "-v2",
+      "-v3",
+      ":0",
+      ":1",
+      ":2"
+    ],
+    "type_conflicts": [
+      {
+        "group1": [
+          "embed",
+          "embedding"
+        ],
+        "group2": [
+          "generator",
+          "generation",
+          "chat",
+          "instruct"
+        ]
+      },
+      {
+        "group1": [
+          "rerank"
+        ],
+        "group2": [
+          "embed",
+          "embedding",
+          "chat"
+        ]
+      },
+      {
+        "group1": [
+          "image-generator",
+          "imagegenerator"
+        ],
+        "group2": [
+          "text",
+          "chat",
+          "embed"
+        ]
+      }
+    ]
+  },
+  "agent_configuration": {
+    "bedrock_model_id": "us.anthropic.claude-opus-4-5-20251101-v1:0",
+    "max_tokens": 8192,
+    "thresholds": {
+      "unmatched_models_trigger": 5,
+      "low_confidence_threshold": 0.6,
+      "new_provider_trigger": true,
+      "max_low_confidence_matches": 3,
+      "context_window_variance_trigger": 0.1
+    },
+    "auto_apply_rules": {
+      "safe_changes": [
+        "provider_pattern_addition",
+        "region_addition",
+        "documentation_link_addition",
+        "context_window_update",
+        "service_code_addition"
+      ],
+      "requires_review": [
+        "provider_pattern_removal",
+        "provider_pattern_modification",
+        "threshold_change",
+        "model_family_change",
+        "model_variant_change",
+        "context_window_removal"
+      ],
+      "max_models_affected_for_auto_apply": 0.2
+    }
+  },
+  "pricing_service_codes": [
+    "AmazonBedrock",
+    "AmazonBedrockService",
+    "AmazonBedrockFoundationModels"
+  ],
+  "gap_detection_config": {
+    "context_window_variance_threshold": 0.1,
+    "enable_frontend_drift_detection": true,
+    "enable_context_window_detection": true,
+    "enable_service_code_detection": true
+  }
+}

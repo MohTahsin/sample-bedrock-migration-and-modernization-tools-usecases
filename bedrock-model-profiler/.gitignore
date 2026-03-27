@@ -1,0 +1,76 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+.vite/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.egg-info/
+.eggs/
+venv/
+.venv/
+env/
+
+# SAM
+.aws-sam/
+*samconfig.toml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Secrets
+*.pem
+*.key
+credentials.json
+
+# CDK
+cdk/
+
+
+# Runtime data files (fetched from S3/CloudFront, not source-controlled)
+frontend/public/bedrock_models.json
+frontend/public/bedrock_pricing.json
+
+# Local tooling
+.corvus/
+.opencode/
+.claude/
+frontend/public/latest/
+
+# Test output artifacts
+backend/tests/workflow_output/
+backend/tests/output/
+backend/scripts/
