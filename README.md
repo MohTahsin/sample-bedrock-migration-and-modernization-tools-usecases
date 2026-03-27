@@ -4,13 +4,13 @@ One-stop shop for migrating and modernizing your LLM workloads to Amazon Bedrock
 
 ## Your Migration Journey
 
-### 1. Profile - Benchmark Performance
+### 1. Profile - Explore & Compare Models
 **[bedrock-model-profiler](bedrock-model-profiler/)**
 
-Measure latency, throughput, and cost across Bedrock models.
-- Compare TTFT, TTLB across regions
-- Identify optimal model/region combinations
-- Cost projections at scale
+Explore, analyze, and compare 100+ Amazon Bedrock foundation models.
+- Compare capabilities, pricing, and specifications side-by-side
+- Regional availability across all AWS regions with CRIS, Mantle, batch, and provisioned options
+- Filter by provider, modality, context window, and 13+ other dimensions
 
 ### 2. Evaluate - Compare Model Quality
 **[360-eval](360-eval/)**
