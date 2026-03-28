@@ -924,6 +924,14 @@ def main(
         for _line in f:
             raw_models.append(json.loads(_line))
 
+        # Enrich Bedrock models with dynamic pricing from AWS Price List API
+        try:
+            from bedrock_pricing import resolve_all_pricing, enrich_model_entry
+            resolve_all_pricing()
+            raw_models = [enrich_model_entry(m) for m in raw_models]
+        except Exception as e:
+            logging.warning("Dynamic pricing resolution failed, using static JSONL values: %s", e)
+
         models, failed = model_sanity_check(raw_models)
 
         if len(models) == 0:

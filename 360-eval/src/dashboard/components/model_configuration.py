@@ -59,6 +59,11 @@ class ModelConfigurationComponent:
             if st.session_state.aws_region not in available_regions and available_regions:
                 st.session_state.aws_region = available_regions[0]
             st.session_state.filtered_regions = available_regions
+
+        # Update cost fields to reflect the newly selected model's pricing
+        costs = DEFAULT_COST_MAP.get(selected_model, {"input": 0.001, "output": 0.002})
+        st.session_state.bedrock_input_cost = costs["input"]
+        st.session_state.bedrock_output_cost = costs["output"]
     
     def render(self):
         """Render the model configuration component."""
@@ -255,16 +260,19 @@ class ModelConfigurationComponent:
                 )
                 model_availability = {}
 
-        # Get default costs
+        # Initialize cost keys in session state if not already set
         default_input_cost = DEFAULT_COST_MAP.get(selected_model, {"input": 0.001, "output": 0.002})["input"]
         default_output_cost = DEFAULT_COST_MAP.get(selected_model, {"input": 0.001, "output": 0.002})["output"]
+        if f"{prefix}_input_cost" not in st.session_state:
+            st.session_state[f"{prefix}_input_cost"] = default_input_cost
+        if f"{prefix}_output_cost" not in st.session_state:
+            st.session_state[f"{prefix}_output_cost"] = default_output_cost
 
         with col2:
             input_cost = st.number_input(
                 "Input Cost",
                 min_value=0.0,
                 max_value=1.0,
-                value=default_input_cost,
                 step=0.0001,
                 format="%.6f",
                 key=f"{prefix}_input_cost"
@@ -275,7 +283,6 @@ class ModelConfigurationComponent:
                 "Output Cost",
                 min_value=0.0,
                 max_value=1.0,
-                value=default_output_cost,
                 step=0.0001,
                 format="%.6f",
                 key=f"{prefix}_output_cost"

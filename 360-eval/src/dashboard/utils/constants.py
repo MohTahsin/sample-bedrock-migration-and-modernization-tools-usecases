@@ -27,18 +27,29 @@ def generate_model_info(filename='models_profiles.jsonl'):
     """
     file_path = get_config_path(filename)
     try:
+        # Resolve dynamic Bedrock pricing (cached, only re-fetches when profiles change)
+        _enrich_fn = None
+        try:
+            from bedrock_pricing import resolve_all_pricing, enrich_model_entry
+            resolve_all_pricing()
+            _enrich_fn = enrich_model_entry
+        except Exception:
+            pass  # Fall back to static JSONL pricing
+
         # Initialize empty structures
         bedrock_models = []
         openai_models = []
         cost_map = {}
         model_to_regions = {}
         region_to_models = {}
-        
+
         # Read and process the JSONL file
         with open(file_path, 'r') as file:
             for line in file:
                 try:
                     data = json.loads(line)
+                    if _enrich_fn:
+                        data = _enrich_fn(data)
                     model_id = data['model_id']
                     region = None
                     if 'region' in data and 'bedrock/' in model_id:
