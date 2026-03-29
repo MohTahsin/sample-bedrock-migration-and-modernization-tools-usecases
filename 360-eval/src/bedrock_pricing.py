@@ -344,33 +344,94 @@ def _extract_costs_from_products(products: list, model_id: str, region: str) -> 
 # Tier 1: Query all 3 service codes
 # ---------------------------------------------------------------------------
 
+def _fetch_all_products_parallel() -> list:
+    """Fetch all products from all 3 service codes in parallel.
+
+    Returns a combined list of all product entries.
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    pricing_client = boto3.client("pricing", region_name=PRICING_CLIENT_REGION)
+    all_products = []
+
+    def fetch_service(sc):
+        try:
+            products = get_all_products(pricing_client, sc)
+            logger.info("Fetched %d products from %s", len(products), sc)
+            return products
+        except Exception as exc:
+            logger.warning("Failed to query %s: %s", sc, exc)
+            return []
+
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        futures = {executor.submit(fetch_service, sc): sc for sc in SERVICE_CODES}
+        for future in as_completed(futures):
+            all_products.extend(future.result())
+
+    logger.info("Total products fetched: %d", len(all_products))
+    return all_products
+
+
+def _resolve_bulk_from_products(
+    products: list, models: list[tuple[str, str]]
+) -> dict[str, dict]:
+    """Match all (model_id, region) pairs against a pre-fetched product list.
+
+    Args:
+        products: Combined product list from all service codes.
+        models: List of (stripped_model_id, region) tuples.
+
+    Returns:
+        Dict keyed by "region#model_id" with {input_cost, output_cost} values.
+    """
+    # Pre-extract all pricing entries once
+    entries = []
+    for p in products:
+        entry = extract_pricing(p)
+        if not is_on_demand_standard(entry):
+            continue
+        token_type = classify_token_type(entry)
+        if token_type == "unknown":
+            continue
+        price = entry["price_per_unit_usd"]
+        if price is None:
+            continue
+        entry["_token_type"] = token_type
+        entry["_price_float"] = float(price)
+        entries.append(entry)
+
+    logger.info("Pre-filtered to %d on-demand pricing entries", len(entries))
+
+    results = {}
+    for model_id, region in models:
+        key = f"{region}#{model_id}"
+        input_cost = None
+        output_cost = None
+
+        for entry in entries:
+            if not _matches_model(entry, model_id, region):
+                continue
+
+            if entry["_token_type"] == "input" and input_cost is None:
+                input_cost = entry["_price_float"]
+            elif entry["_token_type"] == "output" and output_cost is None:
+                output_cost = entry["_price_float"]
+
+            if input_cost is not None and output_cost is not None:
+                break
+
+        results[key] = {"input_cost": input_cost, "output_cost": output_cost}
+
+    return results
+
+
 def _query_price_list_api(model_id: str, region: str) -> dict:
     """Tier 1: Query AWS Price List API across all 3 service codes.
 
     Returns {"input_cost": float|None, "output_cost": float|None}.
     """
-    pricing_client = boto3.client("pricing", region_name=PRICING_CLIENT_REGION)
-    input_cost = None
-    output_cost = None
-
-    for sc in SERVICE_CODES:
-        try:
-            products = get_all_products(pricing_client, sc)
-        except Exception as exc:
-            logger.warning("Failed to query %s: %s", sc, exc)
-            continue
-
-        costs = _extract_costs_from_products(products, model_id, region)
-
-        if input_cost is None and costs["input_cost"] is not None:
-            input_cost = costs["input_cost"]
-        if output_cost is None and costs["output_cost"] is not None:
-            output_cost = costs["output_cost"]
-
-        if input_cost is not None and output_cost is not None:
-            break
-
-    return {"input_cost": input_cost, "output_cost": output_cost}
+    products = _fetch_all_products_parallel()
+    return _extract_costs_from_products(products, model_id, region)
 
 
 # ---------------------------------------------------------------------------
@@ -547,7 +608,7 @@ def _fetch_bulk_json(service_path: str) -> Optional[dict]:
 
 
 def _scrape_webpage_pricing(model_id: str, region: str) -> dict:
-    """Tier 3: Scrape AWS Bedrock pricing webpage for missing prices.
+    """Tier 3: Scrape AWS Bedrock pricing webpage for a single model.
 
     Returns {"input_cost": float|None, "output_cost": float|None}.
     Costs are returned in per-1K-token format.
@@ -556,64 +617,119 @@ def _scrape_webpage_pricing(model_id: str, region: str) -> dict:
         page_bytes = _fetch_url(_PRICING_PAGE_URL, timeout=20)
         page_html = page_bytes.decode("utf-8", errors="replace")
         entries = _parse_pricing_page(page_html)
-
-        if not entries:
-            logger.warning("Tier 3: No model entries parsed from pricing page")
-            return {"input_cost": None, "output_cost": None}
-
-        matched = _find_model_entry(model_id, entries)
-        if not matched:
-            logger.info("Tier 3: No matching model found for %s", model_id)
-            return {"input_cost": None, "output_cost": None}
-
-        logger.info(
-            "Tier 3: Matched %s -> '%s' (service=%s)",
-            model_id, matched["model_name"], matched["service_path"],
-        )
-
-        bulk_data = _fetch_bulk_json(matched["service_path"])
-        if not bulk_data:
-            return {"input_cost": None, "output_cost": None}
-
-        region_name = _REGION_DISPLAY_NAMES.get(region)
-        if not region_name:
-            logger.warning("Tier 3: Unknown region code %s", region)
-            return {"input_cost": None, "output_cost": None}
-
-        region_prices = bulk_data.get("regions", {}).get(region_name, {})
-        if not region_prices:
-            logger.info("Tier 3: No pricing data for region %s", region_name)
-            return {"input_cost": None, "output_cost": None}
-
-        input_entry = region_prices.get(matched["input_hash"], {})
-        output_entry = region_prices.get(matched["output_hash"], {})
-
-        input_raw = float(input_entry["price"]) if input_entry.get("price") else None
-        output_raw = float(output_entry["price"]) if output_entry.get("price") else None
-
-        # Convert to per-1K-token format:
-        #   {priceOf!svc!hash!*!1000} -> raw is per 1K tokens
-        #   {priceOf!svc!hash}        -> raw is per 1M tokens, divide by 1000
-        input_cost = None
-        output_cost = None
-
-        if input_raw is not None:
-            if matched["input_mult"] >= 1000:
-                input_cost = input_raw
-            else:
-                input_cost = input_raw / 1000.0
-
-        if output_raw is not None:
-            if matched["output_mult"] >= 1000:
-                output_cost = output_raw
-            else:
-                output_cost = output_raw / 1000.0
-
-        return {"input_cost": input_cost, "output_cost": output_cost}
-
+        bulk_cache = {}
+        return _resolve_single_from_webpage(model_id, region, entries, bulk_cache)
     except Exception as exc:
         logger.warning("Tier 3 webpage pricing scrape failed: %s", exc)
         return {"input_cost": None, "output_cost": None}
+
+
+def _resolve_single_from_webpage(
+    model_id: str, region: str, entries: list[dict], bulk_cache: dict
+) -> dict:
+    """Resolve pricing for a single model from pre-fetched webpage data.
+
+    Args:
+        model_id: Stripped model ID.
+        region: AWS region.
+        entries: Parsed pricing page entries (from _parse_pricing_page).
+        bulk_cache: Dict to cache bulk JSON data by service_path (shared across calls).
+
+    Returns {"input_cost": float|None, "output_cost": float|None}.
+    """
+    if not entries:
+        return {"input_cost": None, "output_cost": None}
+
+    matched = _find_model_entry(model_id, entries)
+    if not matched:
+        logger.info("Tier 3: No matching model found for %s", model_id)
+        return {"input_cost": None, "output_cost": None}
+
+    logger.info(
+        "Tier 3: Matched %s -> '%s' (service=%s)",
+        model_id, matched["model_name"], matched["service_path"],
+    )
+
+    # Use cached bulk JSON or fetch it
+    sp = matched["service_path"]
+    if sp not in bulk_cache:
+        bulk_cache[sp] = _fetch_bulk_json(sp)
+    bulk_data = bulk_cache[sp]
+
+    if not bulk_data:
+        return {"input_cost": None, "output_cost": None}
+
+    region_name = _REGION_DISPLAY_NAMES.get(region)
+    if not region_name:
+        logger.warning("Tier 3: Unknown region code %s", region)
+        return {"input_cost": None, "output_cost": None}
+
+    region_prices = bulk_data.get("regions", {}).get(region_name, {})
+    if not region_prices:
+        logger.info("Tier 3: No pricing data for region %s", region_name)
+        return {"input_cost": None, "output_cost": None}
+
+    input_entry = region_prices.get(matched["input_hash"], {})
+    output_entry = region_prices.get(matched["output_hash"], {})
+
+    input_raw = float(input_entry["price"]) if input_entry.get("price") else None
+    output_raw = float(output_entry["price"]) if output_entry.get("price") else None
+
+    # Convert to per-1K-token format:
+    #   {priceOf!svc!hash!*!1000} -> raw is per 1K tokens
+    #   {priceOf!svc!hash}        -> raw is per 1M tokens, divide by 1000
+    input_cost = None
+    output_cost = None
+
+    if input_raw is not None:
+        input_cost = input_raw if matched["input_mult"] >= 1000 else input_raw / 1000.0
+
+    if output_raw is not None:
+        output_cost = output_raw if matched["output_mult"] >= 1000 else output_raw / 1000.0
+
+    return {"input_cost": input_cost, "output_cost": output_cost}
+
+
+def _scrape_webpage_pricing_bulk(models: list[tuple[str, str]]) -> dict[str, dict]:
+    """Tier 3 bulk: Scrape webpage once and resolve all models.
+
+    Fetches the pricing page HTML once, parses it, then resolves all models
+    sharing the cached HTML and bulk JSON data.
+
+    Args:
+        models: List of (stripped_model_id, region) tuples.
+
+    Returns:
+        Dict keyed by "region#model_id" with {input_cost, output_cost} values.
+    """
+    results = {}
+
+    try:
+        page_bytes = _fetch_url(_PRICING_PAGE_URL, timeout=20)
+        page_html = page_bytes.decode("utf-8", errors="replace")
+        entries = _parse_pricing_page(page_html)
+
+        if not entries:
+            logger.warning("Tier 3 bulk: No model entries parsed from pricing page")
+            return {f"{reg}#{mid}": {"input_cost": None, "output_cost": None} for mid, reg in models}
+
+        logger.info("Tier 3 bulk: Parsed %d entries from pricing page", len(entries))
+
+        # Shared cache for bulk JSON files (avoids re-fetching per service_path)
+        bulk_cache = {}
+
+        for model_id, region in models:
+            key = f"{region}#{model_id}"
+            results[key] = _resolve_single_from_webpage(model_id, region, entries, bulk_cache)
+
+    except Exception as exc:
+        logger.warning("Tier 3 bulk webpage scrape failed: %s", exc)
+        for model_id, region in models:
+            key = f"{region}#{model_id}"
+            if key not in results:
+                results[key] = {"input_cost": None, "output_cost": None}
+
+    return results
 
 
 # ---------------------------------------------------------------------------
@@ -742,30 +858,72 @@ def resolve_all_pricing(force: bool = False) -> dict:
 
     logger.info("Resolving pricing for %d unique Bedrock model+region combinations", len(unique_entries))
 
-    for idx, entry in enumerate(unique_entries, 1):
-        model_id = entry["model_id"]
+    # Build list of (stripped_model_id, region) for bulk lookup
+    model_region_pairs = []
+    key_map = {}  # maps "region#stripped_id" -> cache_key
+    for entry in unique_entries:
+        stripped_id = strip_model_id_for_pricing(entry["model_id"])
         region = entry["region"]
-        key = _cache_key(model_id, region)
-        stripped_id = strip_model_id_for_pricing(model_id)
+        cache_key = _cache_key(entry["model_id"], region)
+        bulk_key = f"{region}#{stripped_id}"
+        model_region_pairs.append((stripped_id, region))
+        key_map[bulk_key] = cache_key
 
-        logger.info("[%d/%d] Resolving pricing for %s @ %s", idx, len(unique_entries), stripped_id, region)
+    # Tier 1: Fetch all products in parallel, match all models at once
+    logger.info("Tier 1: Fetching all products from Price List API (parallel)...")
+    try:
+        all_products = _fetch_all_products_parallel()
+        api_results = _resolve_bulk_from_products(all_products, model_region_pairs)
+    except Exception as exc:
+        logger.warning("Bulk API fetch failed: %s", exc)
+        api_results = {}
 
-        pricing = get_model_pricing(stripped_id, region)
+    # Tier 3: For models not fully resolved by API, try webpage scrape
+    missing = [
+        (mid, reg) for mid, reg in model_region_pairs
+        if api_results.get(f"{reg}#{mid}", {}).get("input_cost") is None
+        or api_results.get(f"{reg}#{mid}", {}).get("output_cost") is None
+    ]
 
-        cache["pricing"][key] = {
-            "input_cost_per_1k": pricing["input_cost"],
-            "output_cost_per_1k": pricing["output_cost"],
-            "pricing_source": pricing["pricing_source"],
+    if missing:
+        logger.info("Tier 3: Scraping webpage pricing for %d remaining models (single fetch)...", len(missing))
+        tier3_results = _scrape_webpage_pricing_bulk(missing)
+
+        for stripped_id, region in missing:
+            bulk_key = f"{region}#{stripped_id}"
+            api_r = api_results.get(bulk_key, {"input_cost": None, "output_cost": None})
+            tier3 = tier3_results.get(bulk_key, {"input_cost": None, "output_cost": None})
+
+            if api_r["input_cost"] is None and tier3["input_cost"] is not None:
+                api_r["input_cost"] = tier3["input_cost"]
+            if api_r["output_cost"] is None and tier3["output_cost"] is not None:
+                api_r["output_cost"] = tier3["output_cost"]
+            api_results[bulk_key] = api_r
+
+    # Build cache from results
+    for stripped_id, region in model_region_pairs:
+        bulk_key = f"{region}#{stripped_id}"
+        cache_key = key_map[bulk_key]
+        r = api_results.get(bulk_key, {"input_cost": None, "output_cost": None})
+
+        inp = r["input_cost"]
+        out = r["output_cost"]
+        if inp is not None and out is not None:
+            source = "api" if bulk_key not in {f"{reg}#{mid}" for mid, reg in missing} else "webpage"
+        else:
+            source = "unavailable"
+
+        cache["pricing"][cache_key] = {
+            "input_cost_per_1k": inp,
+            "output_cost_per_1k": out,
+            "pricing_source": source,
             "last_resolved": datetime.now(timezone.utc).isoformat(),
         }
 
-        if pricing["pricing_source"] == "unavailable":
+        if source == "unavailable":
             logger.warning("Pricing unavailable for %s @ %s", stripped_id, region)
         else:
-            logger.info(
-                "  -> input: %s, output: %s (source: %s)",
-                pricing["input_cost"], pricing["output_cost"], pricing["pricing_source"],
-            )
+            logger.info("  %s @ %s -> input: %s, output: %s (%s)", stripped_id, region, inp, out, source)
 
     save_pricing_cache(cache)
     return cache
