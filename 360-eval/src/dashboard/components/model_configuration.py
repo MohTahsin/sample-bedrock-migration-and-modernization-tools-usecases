@@ -12,18 +12,8 @@ from ..utils.constants import (
     MODEL_TO_REGIONS,
     REGION_TO_MODELS,
     JUDGE_MODEL_TO_REGIONS,
-    JUDGE_REGION_TO_MODELS
-)
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parents[3] / "src"))
-from model_capability_validator import (
-    get_available_service_tiers,
-    get_model_capabilities,
-    is_cache_valid,
-    load_capability_cache,
-    validate_all_models,
-    CACHE_FILE
+    JUDGE_REGION_TO_MODELS,
+    MODEL_SERVICE_TIERS,
 )
 from ..utils.state_management import save_current_evaluation
 
@@ -33,48 +23,45 @@ class ModelConfigurationComponent:
     
     def __init__(self):
         # Initialize session state for model/region filtering
-        if 'selected_bedrock_model' not in st.session_state:
-            st.session_state.selected_bedrock_model = None
-        if 'filtered_regions' not in st.session_state:
-            st.session_state.filtered_regions = list(REGION_TO_MODELS.keys()) if REGION_TO_MODELS else AWS_REGIONS
-        if 'filtered_models' not in st.session_state:
-            st.session_state.filtered_models = {}
+        pass
     
     def _on_region_change(self):
-        """Handle region selection change and auto-correct model selection."""
+        """Handle region selection change and update pricing."""
         selected_region = st.session_state.aws_region
-        if selected_region in REGION_TO_MODELS:
-            available_models = REGION_TO_MODELS[selected_region]
-            # Auto-select first available model if current selection is invalid
-            if st.session_state.selected_bedrock_model not in available_models and available_models:
-                st.session_state.selected_bedrock_model = available_models[0]
-            st.session_state.filtered_models = available_models
+
+        # Update costs for the currently selected model in the new region
+        selected_model = st.session_state.get("bedrock_model_select")
+        if selected_model:
+            costs = DEFAULT_COST_MAP.get((selected_model, selected_region)) or DEFAULT_COST_MAP.get((selected_model, "N/A"), {"input": 0.001, "output": 0.002})
+            st.session_state.bedrock_input_cost = costs["input"]
+            st.session_state.bedrock_output_cost = costs["output"]
     
     def _on_model_change(self):
-        """Handle model selection change and auto-correct region selection."""
-        selected_model = st.session_state.bedrock_model_select
-        if selected_model in MODEL_TO_REGIONS:
-            available_regions = MODEL_TO_REGIONS[selected_model]
-            # Auto-select first available region if current selection is invalid
-            if st.session_state.aws_region not in available_regions and available_regions:
-                st.session_state.aws_region = available_regions[0]
-            st.session_state.filtered_regions = available_regions
+        """Handle model selection change and update pricing."""
+        selected_model = st.session_state.get("bedrock_model_select")
+        if not selected_model:
+            return
 
-        # Update cost fields to reflect the newly selected model's pricing
-        costs = DEFAULT_COST_MAP.get(selected_model, {"input": 0.001, "output": 0.002})
+        # Update cost fields to reflect the newly selected model's pricing for the current region
+        current_region = st.session_state.get("aws_region", "us-east-1")
+        costs = DEFAULT_COST_MAP.get((selected_model, current_region)) or DEFAULT_COST_MAP.get((selected_model, "N/A"), {"input": 0.001, "output": 0.002})
         st.session_state.bedrock_input_cost = costs["input"]
         st.session_state.bedrock_output_cost = costs["output"]
     
     def render(self):
         """Render the model configuration component."""
 
-        # Check if model capability validation is needed
-        self._render_validation_banner()
+        # Service tiers are now sourced from models_profiles.jsonl (via Price List API)
+        # No validation banner needed
 
-        # Determine available regions based on selected model
-        available_regions = st.session_state.filtered_regions if hasattr(st.session_state, 'filtered_regions') else list(REGION_TO_MODELS.keys())
-        if not available_regions:
-            available_regions = AWS_REGIONS
+        # Show all regions, sorted: US -> EU -> CA -> rest
+        def _region_sort_key(r):
+            priority = {"us": 0, "eu": 1, "ca": 2}
+            prefix = r.split("-")[0]
+            return (priority.get(prefix, 3), r)
+
+        all_regions = REGION_TO_MODELS.keys() if REGION_TO_MODELS else AWS_REGIONS
+        available_regions = sorted(all_regions, key=_region_sort_key)
         
         # Region selection with dynamic filtering
         selected_region = st.selectbox(
@@ -89,15 +76,15 @@ class ModelConfigurationComponent:
         tab1, tab2 = st.tabs(["Bedrock Models", "Other Models"])
         
         with tab1:
-            # Get models available in selected region
+            # Show Bedrock models available in the selected region
             if selected_region in REGION_TO_MODELS:
-                bedrock_models = REGION_TO_MODELS[selected_region]
+                bedrock_models = sorted(REGION_TO_MODELS[selected_region])
             else:
-                bedrock_models = [model[0] for model in DEFAULT_BEDROCK_MODELS]
+                bedrock_models = sorted(set(model[0] for model in DEFAULT_BEDROCK_MODELS))
             self._render_model_dropdown(bedrock_models, "bedrock", selected_region)
-        
+
         with tab2:
-            openai_models = [model[0] for model in DEFAULT_OPENAI_MODELS]
+            openai_models = sorted(set(model[0] for model in DEFAULT_OPENAI_MODELS))
             self._render_model_dropdown(openai_models, "openai", selected_region)
         
         # Selected models display
@@ -205,64 +192,30 @@ class ModelConfigurationComponent:
 
         with col1:
             if prefix == "bedrock":
-                # Check availability for each Bedrock model and annotate
-                annotated_models = []
-                model_availability = {}  # Store availability status
+                # Reset stale model selection if it's not in the current list
+                current_selection = st.session_state.get(f"{prefix}_model_select")
+                if current_selection and model_list and current_selection not in model_list:
+                    st.session_state[f"{prefix}_model_select"] = model_list[0]
 
-                for model_id in model_list if model_list else []:
-                    capabilities = get_model_capabilities(model_id, region)
-
-                    if capabilities and capabilities.get("available"):
-                        # Model is available
-                        annotated_models.append(model_id)
-                        model_availability[model_id] = {
-                            "available": True,
-                            "error": None,
-                            "service_tiers": capabilities.get("service_tiers", ["default"])
-                        }
-                    elif capabilities and not capabilities.get("available"):
-                        # Model is unavailable (tested and failed)
-                        unavailable_label = f"⚠️ {model_id} (unavailable)"
-                        annotated_models.append(unavailable_label)
-                        model_availability[unavailable_label] = {
-                            "available": False,
-                            "error": capabilities.get("error", "Not available in this region"),
-                            "service_tiers": [],
-                            "original_id": model_id
-                        }
-                    else:
-                        # No cache data available
-                        annotated_models.append(model_id)
-                        model_availability[model_id] = {
-                            "available": None,  # Unknown
-                            "error": "Not validated",
-                            "service_tiers": ["default"]
-                        }
-
-                # Store availability map in session state for later use
-                st.session_state[f"{prefix}_model_availability"] = model_availability
-
-                # For Bedrock models, add on_change callback
                 selected_model = st.selectbox(
                     "Select Model",
-                    options=annotated_models if annotated_models else ["No models available in this region"],
+                    options=model_list if model_list else ["No models available"],
                     key=f"{prefix}_model_select",
-                    on_change=self._on_model_change if annotated_models else None,
-                    disabled=not annotated_models,
-                    help="Models marked with ⚠️ are not available in the selected region"
+                    on_change=self._on_model_change if model_list else None,
+                    disabled=not model_list,
                 )
             else:
-                # For non-Bedrock models, no region filtering
                 selected_model = st.selectbox(
                     "Select Model",
                     options=model_list,
                     key=f"{prefix}_model_select"
                 )
-                model_availability = {}
 
         # Initialize cost keys in session state if not already set
-        default_input_cost = DEFAULT_COST_MAP.get(selected_model, {"input": 0.001, "output": 0.002})["input"]
-        default_output_cost = DEFAULT_COST_MAP.get(selected_model, {"input": 0.001, "output": 0.002})["output"]
+        # Look up pricing by (model_id, region), fall back to (model_id, "N/A") for non-Bedrock
+        default_costs = DEFAULT_COST_MAP.get((selected_model, region)) or DEFAULT_COST_MAP.get((selected_model, "N/A"), {"input": 0.001, "output": 0.002})
+        default_input_cost = default_costs["input"]
+        default_output_cost = default_costs["output"]
         if f"{prefix}_input_cost" not in st.session_state:
             st.session_state[f"{prefix}_input_cost"] = default_input_cost
         if f"{prefix}_output_cost" not in st.session_state:
@@ -291,8 +244,8 @@ class ModelConfigurationComponent:
         with col4:
             # Service tier dropdown for Bedrock models
             if prefix == "bedrock":
-                # Get available tiers for this specific model+region
-                available_tiers = get_available_service_tiers(selected_model, region)
+                # Get available tiers from models_profiles.jsonl (no API calls needed)
+                available_tiers = MODEL_SERVICE_TIERS.get((selected_model, region), ["default"])
 
                 if available_tiers and len(available_tiers) > 0:
                     selected_tier = st.selectbox(
@@ -339,9 +292,6 @@ class ModelConfigurationComponent:
                 target_rpm = target_rpm if target_rpm > 0 else None
 
             # Check if model is unavailable (for Bedrock models)
-            model_info = model_availability.get(selected_model, {}) if prefix == "bedrock" else {}
-            is_unavailable = model_info.get("available") == False
-
             # Get the selected tier for Bedrock models
             selected_tier = st.session_state.get(f"{prefix}_service_tier_select", "default") if prefix == "bedrock" else None
 
@@ -350,28 +300,16 @@ class ModelConfigurationComponent:
                 key=f"{prefix}_add_model",
                 on_click=self._add_model,
                 args=(selected_model, region, input_cost, output_cost, target_rpm, prefix, selected_tier),
-                disabled=is_unavailable,
-                help="This model is not available in the selected region" if is_unavailable else "Add this model to your evaluation"
+                help="Add this model to your evaluation"
             )
 
-        # Show availability status for Bedrock models
-        if prefix == "bedrock" and model_availability:
-            model_info = model_availability.get(selected_model, {})
-
-            if model_info.get("available") == False:
-                # Model is unavailable
-                error_msg = model_info.get("error", "Not available in this region")
-                st.error(f"⚠️ **Model Unavailable:** {error_msg}")
-            elif model_info.get("available") == None:
-                # Model not validated
-                st.info("ℹ️ **Not Validated:** This model hasn't been validated yet. Run validation to check availability and service tier support.")
-            elif model_info.get("available") == True:
-                # Model is available - show service tier count
-                tiers = model_info.get("service_tiers", [])
-                if len(tiers) > 1:
-                    st.success(f"✅ **Available** with {len(tiers)} service tiers: {', '.join(tiers)}")
-                else:
-                    st.success(f"✅ **Available** (default tier only)")
+        # Show service tier info for Bedrock models
+        if prefix == "bedrock":
+            tiers = MODEL_SERVICE_TIERS.get((selected_model, region), [])
+            if len(tiers) > 1:
+                st.success(f"✅ **Available** with {len(tiers)} service tiers: {', '.join(tiers)}")
+            elif tiers:
+                st.success(f"✅ **Available** (default tier only)")
 
     
     def _render_judge_selection(self, region, disabled=False):
@@ -393,11 +331,12 @@ class ModelConfigurationComponent:
         if isinstance(selected_judge, int):
             selected_judge = judge_options[selected_judge] if selected_judge < len(judge_options) else judge_options[0]
         
-        # Get default costs and region from judge config
-        default_input_cost = DEFAULT_JUDGES_COST.get(selected_judge, {"input": 0.001, "output": 0.002})["input"]
-        default_output_cost = DEFAULT_JUDGES_COST.get(selected_judge, {"input": 0.001, "output": 0.002})["output"]
         # Use the judge's predefined region from the config file
         judge_region = judge_regions.get(selected_judge, "us-east-1")
+        # Get default costs for this judge + region
+        judge_costs = DEFAULT_JUDGES_COST.get((selected_judge, judge_region)) or DEFAULT_JUDGES_COST.get((selected_judge, "N/A"), {"input": 0.001, "output": 0.002})
+        default_input_cost = judge_costs["input"]
+        default_output_cost = judge_costs["output"]
         with col2:
             judge_input_cost = st.number_input(
                 "Input Cost",
@@ -585,74 +524,4 @@ class ModelConfigurationComponent:
         """Check if the current configuration is valid."""
         return len(self._get_missing_configuration_items()) == 0
 
-    def _render_validation_banner(self):
-        """Render validation status banner for model capabilities."""
-        cache_exists = CACHE_FILE.exists()
-        cache_valid = is_cache_valid() if cache_exists else False
-
-        # Determine banner state
-        if not cache_exists:
-            banner_type = "warning"
-            banner_title = "⚠️ Model Capabilities Not Validated"
-            banner_message = "Service tier availability hasn't been validated. Run validation to see which tiers are available for each model."
-            show_banner = True
-        elif not cache_valid:
-            banner_type = "info"
-            banner_title = "ℹ️ Model Configuration Changed"
-            banner_message = "Your models_profiles.jsonl has changed since last validation. Re-validate to update service tier availability."
-            show_banner = True
-        else:
-            # Cache is valid, show compact success message
-            cache = load_capability_cache()
-            last_updated = cache.get("last_updated", "Unknown")
-            st.success(f"✅ Model capabilities validated (Last updated: {last_updated})")
-            show_banner = False
-
-        if show_banner:
-            # Show expandable validation banner
-            with st.expander(banner_title, expanded=True):
-                if banner_type == "warning":
-                    st.warning(banner_message)
-                else:
-                    st.info(banner_message)
-
-                st.markdown("""
-                **What validation does:**
-                - Tests each model+region combination with a tiny API request
-                - Discovers which service tiers (default, priority, flex) are available
-                - Caches results to avoid repeated calls
-                - Cost: ~$0.001 for full validation
-                """)
-
-                col1, col2 = st.columns([1, 3])
-
-                with col1:
-                    if st.button("🔍 Validate Now", key="validate_models_button", help="Run validation (takes 2-3 minutes)"):
-                        with st.spinner("⏳ Validating models... This may take 2-3 minutes"):
-                            try:
-                                # Run validation
-                                cache = validate_all_models(force=True)
-
-                                # Show success with summary
-                                capabilities = cache.get("capabilities", {})
-                                total_combos = sum(len(regions) for regions in capabilities.values())
-                                available_combos = sum(
-                                    1 for regions in capabilities.values()
-                                    for caps in regions.values()
-                                    if caps.get("available")
-                                )
-
-                                st.success(f"✅ Validation complete! {available_combos}/{total_combos} model+region combinations available.")
-                                st.info("💡 Refresh the page to see updated service tier options.")
-
-                                # Offer to rerun the app
-                                if st.button("🔄 Refresh Dashboard", key="refresh_after_validation"):
-                                    st.rerun()
-
-                            except Exception as e:
-                                st.error(f"❌ Validation failed: {str(e)}")
-                                st.info("Check logs for details. You can also run validation manually: `python src/validate_model_capabilities.py`")
-
-                with col2:
-                    st.info("**Alternative:** Run validation via command line:\n```bash\npython src/validate_model_capabilities.py\n```")
 

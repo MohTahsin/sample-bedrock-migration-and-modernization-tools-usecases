@@ -23,6 +23,7 @@ import json
 import logging
 import re
 import urllib.request
+from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -47,6 +48,7 @@ SERVICE_CODES = [
     "AmazonBedrockFoundationModels",
 ]
 PRICING_CLIENT_REGION = "us-east-1"
+PRICING_REFRESH_DAYS = 7  # Re-fetch pricing after this many days
 
 # AWS Bedrock pricing page and bulk JSON endpoints
 _PRICING_PAGE_URL = "https://aws.amazon.com/bedrock/pricing/"
@@ -574,17 +576,26 @@ def _find_model_entry(model_id: str, entries: list[dict]) -> Optional[dict]:
         if norm_id == norm_name:
             return entry
 
-        if norm_id_nospaces in norm_name_nospaces or norm_name_nospaces in norm_id_nospaces:
-            score = len(norm_name_nospaces)
-            if score > best_score:
-                best_score = score
-                best_match = entry
-            continue
+        # Substring match: require both sides to be at least 6 chars to avoid
+        # false positives like "text" matching "titan embed text"
+        if len(norm_id_nospaces) >= 6 and len(norm_name_nospaces) >= 6:
+            if norm_id_nospaces in norm_name_nospaces or norm_name_nospaces in norm_id_nospaces:
+                score = len(norm_name_nospaces)
+                if score > best_score:
+                    best_score = score
+                    best_match = entry
+                continue
 
         id_tokens = set(norm_id.split())
         name_tokens = set(norm_name.split())
-        overlap = len(id_tokens & name_tokens)
-        if overlap >= 2 and overlap > best_score:
+        # Exclude pure numeric tokens from matching (e.g., "1", "2") to avoid
+        # false positives like "pegasus 1 2" matching "claude 2 1"
+        id_meaningful = {t for t in id_tokens if not t.isdigit()}
+        name_meaningful = {t for t in name_tokens if not t.isdigit()}
+        overlap = len(id_meaningful & name_meaningful)
+        # Require at least 2 meaningful token matches AND >50% overlap
+        min_tokens = min(len(id_meaningful), len(name_meaningful))
+        if overlap >= 2 and min_tokens > 0 and overlap / min_tokens > 0.5 and overlap > best_score:
             best_score = overlap
             best_match = entry
 
@@ -980,3 +991,522 @@ def enrich_model_entry(entry: dict) -> dict:
         entry["output_cost_per_1k"] = output_price
 
     return entry
+
+
+# ---------------------------------------------------------------------------
+# Profile generation from Bedrock APIs
+# ---------------------------------------------------------------------------
+
+def fetch_foundation_models(region: str = "us-east-1") -> tuple[dict, dict]:
+    """Fetch all foundation models and build lookup maps.
+
+    Returns:
+        (name_to_info, id_to_name) where:
+        - name_to_info: modelName -> {modelId, inferenceTypes, provider, ...}
+        - id_to_name: modelId -> modelName
+    """
+    client = boto3.client("bedrock", region_name=region)
+    resp = client.list_foundation_models()
+    models = resp.get("modelSummaries", [])
+
+    name_to_info = {}
+    id_to_name = {}
+
+    for m in models:
+        name = m["modelName"]
+        mid = m["modelId"]
+        inference_types = m.get("inferenceTypesSupported", [])
+
+        # Skip provisioned-only variants (e.g., :256k, :300k suffixes)
+        if re.search(r":\d+k$", mid) or re.search(r":mm$", mid):
+            continue
+        if inference_types == ["PROVISIONED"]:
+            continue
+
+        # If duplicate name, prefer ON_DEMAND or INFERENCE_PROFILE over PROVISIONED
+        if name in name_to_info:
+            existing = name_to_info[name]
+            if "PROVISIONED" not in inference_types:
+                pass  # overwrite with better variant
+            else:
+                continue  # keep existing non-provisioned variant
+
+        name_to_info[name] = {
+            "modelId": mid,
+            "inferenceTypes": inference_types,
+            "provider": m.get("providerName", ""),
+            "inputModalities": m.get("inputModalities", []),
+            "outputModalities": m.get("outputModalities", []),
+        }
+        id_to_name[mid] = name
+
+    return name_to_info, id_to_name
+
+
+def fetch_inference_profiles(region: str = "us-east-1") -> dict:
+    """Fetch inference profiles and build cross-region prefix map.
+
+    Returns:
+        Dict mapping base_model_id -> list of cross-region profile IDs.
+        E.g., anthropic.claude-sonnet-4-5-v1:0 -> [us.anthropic..., global.anthropic...]
+    """
+    client = boto3.client("bedrock", region_name=region)
+
+    profiles = []
+    resp = client.list_inference_profiles(maxResults=100)
+    profiles.extend(resp.get("inferenceProfileSummaries", []))
+    while resp.get("nextToken"):
+        resp = client.list_inference_profiles(maxResults=100, nextToken=resp["nextToken"])
+        profiles.extend(resp.get("inferenceProfileSummaries", []))
+
+    cross_region_map = defaultdict(list)
+    for p in profiles:
+        pid = p["inferenceProfileId"]
+        base_models = [m.get("modelArn", "").split("/")[-1] for m in p.get("models", [])]
+        for base in set(base_models):
+            if base:
+                cross_region_map[base].append(pid)
+
+    return cross_region_map
+
+
+def _extract_model_key_from_usagetype(usagetype: str) -> str:
+    """Extract model identifier from usagetype for matching.
+
+    E.g., USE1-moonshotai.kimi-k2-thinking-mantle-input-tokens-standard
+        -> moonshotai.kimi-k2-thinking
+    """
+    stripped = re.sub(r"^[A-Z]{2,4}\d?-", "", usagetype)
+    match = re.match(r"(.+?)-(input|output)-(tokens?|token-count|video-token)", stripped)
+    if not match:
+        return ""
+    model_part = match.group(1)
+    model_part = re.sub(r"-mantle$", "", model_part)
+    return model_part
+
+
+def _normalize_name_for_generation(s: str) -> str:
+    """Normalize a name for fuzzy matching during profile generation."""
+    s = s.lower()
+    # Strip minor version suffixes like ".0" (e.g., "2.0" -> "2", "4.7" stays)
+    # Only strip ".0" specifically, not meaningful decimals
+    s = re.sub(r"\.0(?=\b|[^0-9])", "", s)
+    s = re.sub(r"[-._:\s]+", "", s)
+    return s
+
+
+def _tokenize_for_matching(s: str) -> set[str]:
+    """Split a normalized name into meaningful tokens for set matching.
+
+    Splits on transitions between letters and digits to handle cases like
+    'claude4sonnet' -> {'claude', '4', 'sonnet'} and
+    'claudesonnet4' -> {'claude', 'sonnet', '4'}.
+    """
+    # Insert separator at letter-digit and digit-letter boundaries
+    s = re.sub(r"([a-z])(\d)", r"\1 \2", s)
+    s = re.sub(r"(\d)([a-z])", r"\1 \2", s)
+    # Also split CamelCase-like runs of lowercase that were originally separate words
+    # by splitting at any point where a common model keyword starts
+    keywords = ["claude", "sonnet", "opus", "haiku", "nova", "lite", "pro", "micro",
+                "premier", "llama", "mistral", "qwen", "deepseek", "gemma", "kimi",
+                "minimax", "nemotron", "sonic", "canvas", "reel"]
+    for kw in keywords:
+        s = s.replace(kw, f" {kw} ")
+    return set(s.split()) - {""}
+
+
+def _match_usagetype_to_model(
+    usage_model_key: str, name_matcher: dict, name_to_info: dict
+) -> Optional[str]:
+    """Try to match a usagetype model key to a foundation model.
+
+    Returns the modelId if matched, None otherwise.
+    """
+    norm_key = _normalize_name_for_generation(usage_model_key)
+
+    # Direct match
+    if norm_key in name_matcher:
+        name = name_matcher[norm_key]
+        return name_to_info[name]["modelId"]
+
+    # Substring match (either direction)
+    for norm_name, name in name_matcher.items():
+        if norm_key in norm_name or norm_name in norm_key:
+            return name_to_info[name]["modelId"]
+
+    # Token-set match: handles word reordering (e.g., 'claude4sonnet' vs 'claudesonnet4')
+    key_tokens = _tokenize_for_matching(norm_key)
+    if len(key_tokens) >= 2:
+        best_match = None
+        best_overlap = 0
+        for norm_name, name in name_matcher.items():
+            name_tokens = _tokenize_for_matching(norm_name)
+            overlap = len(key_tokens & name_tokens)
+            # Require all key tokens to be in the name tokens (or vice versa)
+            if key_tokens == name_tokens:
+                return name_to_info[name]["modelId"]
+            if key_tokens.issubset(name_tokens) or name_tokens.issubset(key_tokens):
+                if overlap > best_overlap:
+                    best_overlap = overlap
+                    best_match = name
+        if best_match:
+            return name_to_info[best_match]["modelId"]
+
+    return None
+
+
+def _get_preferred_cross_region_id(model_id: str, cross_region_map: dict) -> str:
+    """Get the preferred cross-region model ID.
+
+    Prefers us. prefix, falls back to global., then base model_id.
+    """
+    profiles = cross_region_map.get(model_id, [])
+    if not profiles:
+        return model_id
+
+    for p in profiles:
+        if p.startswith("us."):
+            return p
+
+    return profiles[0]
+
+
+def _fetch_supported_models_page() -> list[dict]:
+    """Fetch model catalog from AWS Bedrock supported models page.
+
+    Parses https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html
+    to get the definitive list of models, their IDs, and region availability.
+
+    Returns:
+        List of dicts with keys: provider, model_name, model_id,
+        single_regions, cross_regions, input_modalities, output_modalities
+    """
+    url = "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html"
+    req = urllib.request.Request(url, headers={"User-Agent": "BedrockBenchmark/1.0"})
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        html = resp.read().decode("utf-8", errors="replace")
+
+    tables = re.findall(r"<table[^>]*>(.*?)</table>", html, re.DOTALL)
+    if not tables:
+        logger.warning("No tables found on models-supported page")
+        return []
+
+    models = []
+    for table in tables:
+        rows = re.findall(r"<tr[^>]*>(.*?)</tr>", table, re.DOTALL)
+        headers = re.findall(r"<th[^>]*>(.*?)</th>", rows[0], re.DOTALL) if rows else []
+        headers = [re.sub(r"<[^>]+>", "", h).strip().lower() for h in headers]
+
+        if "model id" not in headers:
+            continue
+
+        for row in rows[1:]:
+            cells = re.findall(r"<td[^>]*>(.*?)</td>", row, re.DOTALL)
+            cells_text = [re.sub(r"<[^>]+>", " ", c).strip() for c in cells]
+
+            if len(cells_text) < 3:
+                continue
+
+            model_id = cells_text[headers.index("model id")].strip() if "model id" in headers else ""
+            if not model_id:
+                continue
+
+            provider = cells_text[headers.index("provider")].strip() if "provider" in headers else ""
+            model_name = cells_text[headers.index("model")].strip() if "model" in headers else ""
+
+            # Extract regions
+            single_regions = []
+            cross_regions = []
+            if "single-region model support" in headers:
+                idx = headers.index("single-region model support")
+                if idx < len(cells_text):
+                    single_regions = re.findall(r"[a-z]{2}-[a-z]+-\d+", cells_text[idx])
+            if "cross-region inference profile support" in headers:
+                idx = headers.index("cross-region inference profile support")
+                if idx < len(cells_text):
+                    cross_regions = re.findall(r"[a-z]{2}-[a-z]+-\d+", cells_text[idx])
+
+            # Extract modalities
+            input_mod = ""
+            output_mod = ""
+            if "input modalities" in headers:
+                idx = headers.index("input modalities")
+                if idx < len(cells_text):
+                    input_mod = cells_text[idx].strip()
+            if "output modalities" in headers:
+                idx = headers.index("output modalities")
+                if idx < len(cells_text):
+                    output_mod = cells_text[idx].strip()
+
+            models.append({
+                "provider": provider,
+                "model_name": model_name,
+                "model_id": model_id,
+                "single_regions": single_regions,
+                "cross_regions": cross_regions,
+                "input_modalities": input_mod,
+                "output_modalities": output_mod,
+            })
+
+    logger.info("Parsed %d models from supported models page", len(models))
+    return models
+
+
+def _find_pricing_for_region(
+    model_id: str, target_region: str, pricing: dict
+) -> Optional[dict]:
+    """Find pricing for a model in a region with geo-prefix fallback.
+
+    Lookup order:
+    1. Exact (model_id, target_region) match
+    2. Same geo-prefix region (e.g., ca-central-1 falls back to ca-west-1)
+    3. us-west-2 as global fallback
+
+    Returns {"input": float, "output": float} or None.
+    """
+    # 1. Exact match
+    key = (model_id, target_region)
+    if key in pricing and pricing[key]["input"] is not None and pricing[key]["output"] is not None:
+        return pricing[key]
+
+    # 2. Same geo-prefix fallback (e.g., ca- for ca-central-1)
+    geo_prefix = target_region.split("-")[0] + "-"
+    for (mid, reg), costs in pricing.items():
+        if mid == model_id and reg.startswith(geo_prefix) and costs["input"] is not None and costs["output"] is not None:
+            return costs
+
+    # 3. us-west-2 fallback
+    fallback_key = (model_id, "us-west-2")
+    if fallback_key in pricing and pricing[fallback_key]["input"] is not None and pricing[fallback_key]["output"] is not None:
+        return pricing[fallback_key]
+
+    # 4. Any region with pricing
+    for (mid, reg), costs in pricing.items():
+        if mid == model_id and costs["input"] is not None and costs["output"] is not None:
+            return costs
+
+    return None
+
+
+def generate_models_profiles() -> list[dict]:
+    """Generate model profile entries from Bedrock APIs.
+
+    Uses the AWS models-supported page as the authoritative source for which
+    models exist and which regions they support. Uses the Price List API for
+    pricing, with geo-prefix and us-west-2 fallback for missing regions.
+
+    Returns:
+        List of dicts suitable for writing to models_profiles.jsonl.
+    """
+    logger.info("Generating models_profiles from Bedrock APIs...")
+
+    # Step 1: Fetch model catalog from models-supported page
+    catalog = _fetch_supported_models_page()
+    if not catalog:
+        logger.error("Failed to fetch model catalog, falling back to ListFoundationModels")
+        catalog = []
+
+    # Step 2: Inference profiles for cross-region IDs
+    cross_region_map = fetch_inference_profiles()
+    logger.info("Fetched %d cross-region profile mappings", len(cross_region_map))
+
+    # Step 3: Fetch pricing from Price List API
+    name_to_info, id_to_name = fetch_foundation_models()
+    name_matcher = {_normalize_name_for_generation(n): n for n in name_to_info}
+    products = _fetch_all_products_parallel()
+
+    # Build pricing and tier maps from Price List API
+    pricing = defaultdict(lambda: {"input": None, "output": None})
+    service_tiers = defaultdict(set)
+
+    for p in products:
+        attrs = p.get("product", {}).get("attributes", {})
+        region = attrs.get("regionCode", "")
+        usagetype = attrs.get("usagetype", "").lower()
+        if not region or not usagetype:
+            continue
+
+        usage_model_key = _extract_model_key_from_usagetype(usagetype)
+        if not usage_model_key:
+            continue
+
+        model_id = _match_usagetype_to_model(usage_model_key, name_matcher, name_to_info)
+        if not model_id:
+            continue
+
+        key = (model_id, region)
+
+        # Extract service tier
+        if "-priority" in usagetype:
+            service_tiers[key].add("priority")
+        elif "-flex" in usagetype:
+            service_tiers[key].add("flex")
+        elif "-standard" in usagetype:
+            service_tiers[key].add("standard")
+        else:
+            service_tiers[key].add("default")
+
+        # Extract on-demand standard pricing
+        entry = extract_pricing(p)
+        if not is_on_demand_standard(entry):
+            continue
+
+        token_type = classify_token_type(entry)
+        price = entry["price_per_unit_usd"]
+        if price is None or token_type == "unknown":
+            continue
+
+        if pricing[key][token_type] is None:
+            pricing[key][token_type] = float(price)
+
+    # Step 4: Webpage scrape fallback for models with no API pricing at all
+    models_with_pricing = set(mid for (mid, _) in pricing.keys() if pricing[(mid, _)]["input"] is not None)
+    models_needing_scrape = []
+    for entry in catalog:
+        mid = entry["model_id"]
+        if mid not in models_with_pricing and not re.search(r":\d+k$", mid):
+            models_needing_scrape.append(mid)
+
+    if models_needing_scrape:
+        logger.info("Tier 3: %d models without API pricing, trying webpage scrape...", len(models_needing_scrape))
+        scrape_pairs = [(strip_model_id_for_pricing(f"bedrock/{mid}"), "us-east-1") for mid in models_needing_scrape]
+        scrape_results = _scrape_webpage_pricing_bulk(scrape_pairs)
+        for mid, (stripped, _) in zip(models_needing_scrape, scrape_pairs):
+            result = scrape_results.get(f"us-east-1#{stripped}", {})
+            if result.get("input_cost") is not None and result.get("output_cost") is not None:
+                pricing[(mid, "us-east-1")]["input"] = result["input_cost"]
+                pricing[(mid, "us-east-1")]["output"] = result["output_cost"]
+                if (mid, "us-east-1") not in service_tiers:
+                    service_tiers[(mid, "us-east-1")].add("default")
+
+    # Step 5: Build JSONL entries from catalog + pricing
+    entries = []
+    for model in catalog:
+        model_id = model["model_id"]
+
+        # Skip provisioned-only variants
+        if re.search(r":\d+k$", model_id) or re.search(r":mm$", model_id):
+            continue
+
+        # Only include models with Text output (skip image, video, embedding, reranking)
+        if model.get("output_modalities") and "Text" not in model["output_modalities"]:
+            continue
+
+        # Determine cross-region model ID
+        full_model_id = _get_preferred_cross_region_id(model_id, cross_region_map)
+
+        # All regions where this model is available
+        all_regions = list(set(model["single_regions"] + model["cross_regions"]))
+        if not all_regions:
+            # Model has no region info on the page (Table 2 models) — use us-east-1
+            all_regions = ["us-east-1"]
+
+        for region in sorted(all_regions):
+            # Find pricing with geo-prefix fallback
+            costs = _find_pricing_for_region(model_id, region, pricing)
+            if not costs:
+                continue
+
+            # Build tier list
+            tiers = sorted(service_tiers.get((model_id, region), {"default"}))
+            if "default" not in tiers:
+                tiers = ["default"] + tiers
+
+            entries.append({
+                "model_id": f"bedrock/{full_model_id}",
+                "region": region,
+                "input_token_cost": costs["input"],
+                "output_token_cost": costs["output"],
+                "service_tiers": tiers,
+            })
+
+    logger.info("Generated %d model+region entries", len(entries))
+    return entries
+
+
+def _is_pricing_stale() -> bool:
+    """Check if pricing is older than PRICING_REFRESH_DAYS."""
+    cache = load_pricing_cache()
+    last_updated = cache.get("last_updated")
+    if not last_updated:
+        return True
+    try:
+        updated_dt = datetime.fromisoformat(last_updated)
+        age = datetime.now(timezone.utc) - updated_dt
+        return age.days >= PRICING_REFRESH_DAYS
+    except (ValueError, TypeError):
+        return True
+
+
+def ensure_models_profiles(models_path: Optional[Path] = None) -> Path:
+    """Ensure models_profiles.jsonl exists and pricing is fresh.
+
+    - If file doesn't exist: generate from Bedrock APIs
+    - If file exists but pricing is >7 days old: refresh Bedrock model pricing
+    - Non-Bedrock entries (openai/, gemini/) are preserved unchanged during refresh
+
+    Args:
+        models_path: Path to models_profiles.jsonl. Defaults to config/models_profiles.jsonl.
+
+    Returns:
+        Path to the models_profiles.jsonl file.
+    """
+    if models_path is None:
+        models_path = MODELS_PROFILE_PATH
+
+    if not models_path.exists():
+        print("models_profiles.jsonl not found. Generating model catalog from AWS...")
+        print("This may take 20-30 seconds (fetching models, regions, and pricing)...")
+        logger.info("models_profiles.jsonl not found, generating from Bedrock official sources...")
+        try:
+            entries = generate_models_profiles()
+            if entries:
+                models_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(models_path, "w", encoding="utf-8") as f:
+                    for e in entries:
+                        f.write(json.dumps(e) + "\n")
+                print(f"Generated {len(entries)} model entries across {len(set(e['region'] for e in entries))} regions.")
+                logger.info("Generated %s with %d entries", models_path, len(entries))
+            else:
+                logger.warning("No entries generated from Bedrock APIs")
+        except Exception as exc:
+            logger.error("Failed to generate models_profiles.jsonl: %s", exc)
+        return models_path
+
+    # File exists — check if refresh is needed
+    if not _is_pricing_stale():
+        logger.info("Pricing is fresh (<%d days old), no refresh needed", PRICING_REFRESH_DAYS)
+        return models_path
+
+    print(f"Pricing is over {PRICING_REFRESH_DAYS} days old. Refreshing Bedrock model pricing...")
+    print("This may take 20-30 seconds...")
+    logger.info("Pricing is stale (>%d days), refreshing Bedrock model pricing...", PRICING_REFRESH_DAYS)
+    try:
+        # Read existing entries, preserve non-Bedrock
+        existing = []
+        with open(models_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    existing.append(json.loads(line))
+
+        non_bedrock = [e for e in existing if not e.get("model_id", "").startswith("bedrock/")]
+
+        # Re-generate Bedrock entries from APIs
+        bedrock_entries = generate_models_profiles()
+
+        # Combine: fresh Bedrock + preserved non-Bedrock
+        all_entries = bedrock_entries + non_bedrock
+
+        with open(models_path, "w", encoding="utf-8") as f:
+            for e in all_entries:
+                f.write(json.dumps(e) + "\n")
+
+        logger.info(
+            "Refreshed %s: %d Bedrock + %d non-Bedrock entries",
+            models_path, len(bedrock_entries), len(non_bedrock),
+        )
+    except Exception as exc:
+        logger.error("Failed to refresh models_profiles.jsonl: %s", exc)
+
+    return models_path
