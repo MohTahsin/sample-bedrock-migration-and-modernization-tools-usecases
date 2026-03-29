@@ -52,6 +52,31 @@ def main():
             layout="wide"
         )
         
+        # Ensure models_profiles.jsonl exists and pricing is fresh
+        if "models_profiles_checked" not in st.session_state:
+            try:
+                sys.path.insert(0, os.path.join(project_root, "360-eval", "src"))
+                from bedrock_pricing import ensure_models_profiles, MODELS_PROFILE_PATH, _is_pricing_stale, PRICING_REFRESH_DAYS
+
+                needs_generate = not MODELS_PROFILE_PATH.exists()
+                needs_refresh = not needs_generate and _is_pricing_stale()
+
+                if needs_generate or needs_refresh:
+                    msg = (
+                        "Generating model catalog from AWS..."
+                        if needs_generate
+                        else f"Refreshing Bedrock model pricing (over {PRICING_REFRESH_DAYS} days old)..."
+                    )
+                    status_placeholder = st.empty()
+                    with status_placeholder.status(msg, expanded=True):
+                        st.write("Fetching models, regions, and pricing from AWS APIs.")
+                        st.write("This may take **20-30 seconds**.")
+                        ensure_models_profiles()
+                    status_placeholder.empty()
+            except Exception as e:
+                logger.warning("Failed to ensure models profiles: %s", e)
+            st.session_state.models_profiles_checked = True
+
         # Initialize session state again to ensure all variables are set
         initialize_session_state()
         logger.info("Session state initialized")

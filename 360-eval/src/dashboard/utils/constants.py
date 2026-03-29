@@ -27,13 +27,17 @@ def generate_model_info(filename='models_profiles.jsonl'):
     """
     file_path = get_config_path(filename)
     try:
+        # Pricing is already baked into models_profiles.jsonl from generation.
+        # No enrichment needed — just read the file directly.
+
         # Initialize empty structures
         bedrock_models = []
         openai_models = []
         cost_map = {}
         model_to_regions = {}
         region_to_models = {}
-        
+        model_service_tiers = {}  # (model_id, region) -> list of tiers
+
         # Read and process the JSONL file
         with open(file_path, 'r') as file:
             for line in file:
@@ -65,14 +69,22 @@ def generate_model_info(filename='models_profiles.jsonl'):
                             if model_id not in region_to_models[region]:
                                 region_to_models[region].append(model_id)
 
-                    # Build cost map entry
-                    # Handle the case where 'input_token_cost' might be misspelled as 'input'
+                    # Build service tiers map
+                    if 'service_tiers' in data and region and region != "N/A":
+                        model_service_tiers[(model_id, region)] = data['service_tiers']
+
+                    # Build cost map entry keyed by (model_id, region) for per-region pricing
                     input_cost_key = 'input_token_cost' if 'input_token_cost' in data else ('input_cost_per_1k' if 'input_cost_per_1k' in data else 'input')
                     output_token_key = 'output_token_cost' if 'output_token_cost' in data else ('output_cost_per_1k' if 'output_cost_per_1k' in data else 'output')
-                    cost_map[model_id] = {
+                    cost_entry = {
                         "input": data[input_cost_key],
                         "output": data[output_token_key]
                     }
+                    # Per-region cost map
+                    if region and region != "N/A":
+                        cost_map[(model_id, region)] = cost_entry
+                    else:
+                        cost_map[(model_id, "N/A")] = cost_entry
                 except json.JSONDecodeError:
                     print(f"Warning: Could not parse line: {line}")
                 except KeyError as e:
@@ -84,15 +96,16 @@ def generate_model_info(filename='models_profiles.jsonl'):
             "DEFAULT_OPENAI_MODELS": openai_models,
             "DEFAULT_COST_MAP": cost_map,
             "MODEL_TO_REGIONS": model_to_regions,
-            "REGION_TO_MODELS": region_to_models
+            "REGION_TO_MODELS": region_to_models,
+            "MODEL_SERVICE_TIERS": model_service_tiers,
         }
 
     except FileNotFoundError:
         print(f"Error: File '{file_path}' not found.")
-        return {"DEFAULT_BEDROCK_MODELS": [], "DEFAULT_OPENAI_MODELS": [], "DEFAULT_COST_MAP": {}, "MODEL_TO_REGIONS": {}, "REGION_TO_MODELS": {}}
+        return {"DEFAULT_BEDROCK_MODELS": [], "DEFAULT_OPENAI_MODELS": [], "DEFAULT_COST_MAP": {}, "MODEL_TO_REGIONS": {}, "REGION_TO_MODELS": {}, "MODEL_SERVICE_TIERS": {}}
     except Exception as e:
         print(f"Error: {str(e)}")
-        return {"DEFAULT_BEDROCK_MODELS": [], "DEFAULT_OPENAI_MODELS": [], "DEFAULT_COST_MAP": {}, "MODEL_TO_REGIONS": {}, "REGION_TO_MODELS": {}}
+        return {"DEFAULT_BEDROCK_MODELS": [], "DEFAULT_OPENAI_MODELS": [], "DEFAULT_COST_MAP": {}, "MODEL_TO_REGIONS": {}, "REGION_TO_MODELS": {}, "MODEL_SERVICE_TIERS": {}}
 
 """Constants for the Streamlit dashboard."""
 
@@ -184,6 +197,7 @@ DEFAULT_OPENAI_MODELS = defaults['DEFAULT_OPENAI_MODELS']
 DEFAULT_COST_MAP = defaults['DEFAULT_COST_MAP']
 MODEL_TO_REGIONS = defaults['MODEL_TO_REGIONS']
 REGION_TO_MODELS = defaults['REGION_TO_MODELS']
+MODEL_SERVICE_TIERS = defaults['MODEL_SERVICE_TIERS']
 
 # Load judge data
 judges = generate_model_info('judge_profiles.jsonl')

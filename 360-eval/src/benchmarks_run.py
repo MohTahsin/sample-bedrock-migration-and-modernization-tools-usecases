@@ -918,6 +918,13 @@ def main(
         logging.error("No scenarios found in input.")
         return
 
+    # Ensure models_profiles.jsonl exists and pricing is fresh
+    try:
+        from bedrock_pricing import ensure_models_profiles
+        ensure_models_profiles()
+    except Exception as e:
+        logging.warning("Failed to ensure models profiles: %s", e)
+
     raw_with_models = []
     raw_models = []
     with open(model_path, 'r', encoding='utf-8') as f:
