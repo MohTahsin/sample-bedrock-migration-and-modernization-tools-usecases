@@ -429,7 +429,7 @@ def run_benchmark_process(eval_id):
         cmd = [
             "python", 
             os.path.join(script_dir, "benchmarks_run.py"),
-            jsonl_path,
+            str(jsonl_path),
             "--output_dir", str(output_dir),
             "--report", "False",
             "--parallel_calls", str(evaluation_config["parallel_calls"]),
