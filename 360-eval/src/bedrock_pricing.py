@@ -289,14 +289,17 @@ def _is_on_demand_tier(entry: dict) -> bool:
 
 
 def _detect_tier(usagetype: str) -> str:
-    """Detect service tier from usagetype string."""
+    """Detect service tier from usagetype string.
+
+    Maps "standard" to "default" since they share the same pricing.
+    Only three tiers are exposed: default, flex, priority.
+    """
     usagetype = usagetype.lower()
     if "-priority" in usagetype:
         return "priority"
     if "-flex" in usagetype:
         return "flex"
-    if "-standard" in usagetype:
-        return "standard"
+    # Standard and default are treated as the same tier
     return "default"
 
 
@@ -1464,10 +1467,11 @@ def generate_models_profiles() -> list[dict]:
             if not costs:
                 continue
 
-            # Build tier list
-            tiers = sorted(service_tiers.get((model_id, region), {"default"}))
-            if "default" not in tiers:
-                tiers = ["default"] + tiers
+            # Build tier list (only default, flex, priority)
+            raw_tiers = service_tiers.get((model_id, region), {"default"})
+            raw_tiers.discard("standard")  # standard is merged into default
+            raw_tiers.add("default")
+            tiers = sorted(raw_tiers)
 
             # Build per-tier pricing map
             tp = {}

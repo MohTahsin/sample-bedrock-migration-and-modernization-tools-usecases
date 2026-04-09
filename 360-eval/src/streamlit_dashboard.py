@@ -2,6 +2,7 @@ import streamlit as st
 import sys
 import logging
 import os
+import time
 
 # Add the project root to path to allow importing dashboard modules
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -26,7 +27,7 @@ from src.dashboard.components.results_viewer import ResultsViewerComponent
 from src.dashboard.components.report_viewer import ReportViewerComponent
 from src.dashboard.components.unprocessed_viewer import UnprocessedRecordsViewer
 from src.dashboard.utils.state_management import initialize_session_state
-from src.dashboard.utils.constants import APP_TITLE, SIDEBAR_INFO, PROJECT_ROOT
+from src.dashboard.utils.constants import APP_TITLE, SIDEBAR_INFO, PROJECT_ROOT, reload_model_data
 
 # Initialize session state at module level to ensure it's available before component rendering
 if "evaluations" not in st.session_state:
@@ -56,10 +57,16 @@ def main():
         if "models_profiles_checked" not in st.session_state:
             try:
                 sys.path.insert(0, os.path.join(project_root, "360-eval", "src"))
-                from bedrock_pricing import ensure_models_profiles, MODELS_PROFILE_PATH, _is_pricing_stale, PRICING_REFRESH_DAYS
+                from bedrock_pricing import ensure_models_profiles, MODELS_PROFILE_PATH, PRICING_REFRESH_DAYS
 
                 needs_generate = not MODELS_PROFILE_PATH.exists()
-                needs_refresh = not needs_generate and _is_pricing_stale()
+                needs_refresh = False
+                if not needs_generate:
+                    try:
+                        file_age_days = (time.time() - MODELS_PROFILE_PATH.stat().st_mtime) / 86400
+                        needs_refresh = file_age_days >= PRICING_REFRESH_DAYS
+                    except OSError:
+                        needs_refresh = False
 
                 if needs_generate or needs_refresh:
                     msg = (
@@ -73,6 +80,8 @@ def main():
                         st.write("This may take **20-30 seconds**.")
                         ensure_models_profiles()
                     status_placeholder.empty()
+                    # Reload constants that were empty at import time
+                    reload_model_data()
             except Exception as e:
                 logger.warning("Failed to ensure models profiles: %s", e)
             st.session_state.models_profiles_checked = True
@@ -128,18 +137,23 @@ def main():
         
         # Main area - show different components based on active tab
         if active_tab == "Setup":
-            # Use tabs for the three setup sections
-            setup_tab1, setup_tab2, setup_tab3 = st.tabs(["Evaluation Setup", "Model Configuration", "Advanced Configuration"])
-            
-            with setup_tab1:
+            # Use session-state-backed radio for sub-tab persistence across reruns
+            setup_sections = ["Evaluation Setup", "Model Configuration", "Advanced Configuration"]
+            active_setup = st.radio(
+                "Setup Section",
+                setup_sections,
+                key="setup_sub_tab",
+                horizontal=True,
+                label_visibility="collapsed",
+            )
+
+            if active_setup == "Evaluation Setup":
                 logger.info("Rendering Evaluation Setup component")
                 EvaluationSetupComponent().render()
-            
-            with setup_tab2:
+            elif active_setup == "Model Configuration":
                 logger.info("Rendering Model Configuration component")
                 ModelConfigurationComponent().render()
-            
-            with setup_tab3:
+            elif active_setup == "Advanced Configuration":
                 logger.info("Rendering Advanced Configuration component")
                 EvaluationSetupComponent().render_advanced_config()
                 

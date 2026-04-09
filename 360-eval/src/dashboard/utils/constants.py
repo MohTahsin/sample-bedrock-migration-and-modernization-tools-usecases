@@ -74,6 +74,14 @@ def generate_model_info(filename='models_profiles.jsonl'):
                     if 'service_tiers' in data and region and region != "N/A":
                         model_service_tiers[(model_id, region)] = data['service_tiers']
 
+                    # Build cost map entry keyed by (model_id, region) for per-region pricing
+                    input_cost_key = 'input_token_cost' if 'input_token_cost' in data else ('input_cost_per_1m' if 'input_cost_per_1m' in data else 'input')
+                    output_token_key = 'output_token_cost' if 'output_token_cost' in data else ('output_cost_per_1m' if 'output_cost_per_1m' in data else 'output')
+                    cost_entry = {
+                        "input": data[input_cost_key],
+                        "output": data[output_token_key]
+                    }
+
                     # Build tier cost map
                     if 'tier_pricing' in data and region and region != "N/A":
                         for tier_name, tier_costs in data['tier_pricing'].items():
@@ -84,14 +92,6 @@ def generate_model_info(filename='models_profiles.jsonl'):
                     elif region and region != "N/A":
                         for tier_name in data.get('service_tiers', ['default']):
                             tier_cost_map[(model_id, region, tier_name)] = cost_entry
-
-                    # Build cost map entry keyed by (model_id, region) for per-region pricing
-                    input_cost_key = 'input_token_cost' if 'input_token_cost' in data else ('input_cost_per_1m' if 'input_cost_per_1m' in data else 'input')
-                    output_token_key = 'output_token_cost' if 'output_token_cost' in data else ('output_cost_per_1m' if 'output_cost_per_1m' in data else 'output')
-                    cost_entry = {
-                        "input": data[input_cost_key],
-                        "output": data[output_token_key]
-                    }
                     # Per-region cost map
                     if region and region != "N/A":
                         cost_map[(model_id, region)] = cost_entry
@@ -219,3 +219,29 @@ DEFAULT_JUDGES = judges['DEFAULT_BEDROCK_MODELS']
 DEFAULT_JUDGES_COST = judges['DEFAULT_COST_MAP']
 JUDGE_MODEL_TO_REGIONS = judges['MODEL_TO_REGIONS']
 JUDGE_REGION_TO_MODELS = judges['REGION_TO_MODELS']
+
+
+def reload_model_data():
+    """Reload model and judge data from JSONL files.
+
+    Call this after models_profiles.jsonl is generated or refreshed
+    to update module-level constants that were empty at import time.
+    """
+    global DEFAULT_BEDROCK_MODELS, DEFAULT_OPENAI_MODELS, DEFAULT_COST_MAP
+    global MODEL_TO_REGIONS, REGION_TO_MODELS, MODEL_SERVICE_TIERS, TIER_COST_MAP
+    global DEFAULT_JUDGES, DEFAULT_JUDGES_COST, JUDGE_MODEL_TO_REGIONS, JUDGE_REGION_TO_MODELS
+
+    new_defaults = generate_model_info('models_profiles.jsonl')
+    DEFAULT_BEDROCK_MODELS = new_defaults['DEFAULT_BEDROCK_MODELS']
+    DEFAULT_OPENAI_MODELS = new_defaults['DEFAULT_OPENAI_MODELS']
+    DEFAULT_COST_MAP = new_defaults['DEFAULT_COST_MAP']
+    MODEL_TO_REGIONS = new_defaults['MODEL_TO_REGIONS']
+    REGION_TO_MODELS = new_defaults['REGION_TO_MODELS']
+    MODEL_SERVICE_TIERS = new_defaults['MODEL_SERVICE_TIERS']
+    TIER_COST_MAP = new_defaults['TIER_COST_MAP']
+
+    new_judges = generate_model_info('judge_profiles.jsonl')
+    DEFAULT_JUDGES = new_judges['DEFAULT_BEDROCK_MODELS']
+    DEFAULT_JUDGES_COST = new_judges['DEFAULT_COST_MAP']
+    JUDGE_MODEL_TO_REGIONS = new_judges['MODEL_TO_REGIONS']
+    JUDGE_REGION_TO_MODELS = new_judges['REGION_TO_MODELS']
