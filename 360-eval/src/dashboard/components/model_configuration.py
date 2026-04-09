@@ -223,21 +223,21 @@ class ModelConfigurationComponent:
 
         with col2:
             input_cost = st.number_input(
-                "Input Cost",
+                "Input Cost (per 1M tokens)",
                 min_value=0.0,
-                max_value=1.0,
-                step=0.0001,
-                format="%.6f",
+                max_value=1000.0,
+                step=0.01,
+                format="%.4f",
                 key=f"{prefix}_input_cost"
             )
 
         with col3:
             output_cost = st.number_input(
-                "Output Cost",
+                "Output Cost (per 1M tokens)",
                 min_value=0.0,
-                max_value=1.0,
-                step=0.0001,
-                format="%.6f",
+                max_value=1000.0,
+                step=0.01,
+                format="%.4f",
                 key=f"{prefix}_output_cost"
             )
 
@@ -339,24 +339,24 @@ class ModelConfigurationComponent:
         default_output_cost = judge_costs["output"]
         with col2:
             judge_input_cost = st.number_input(
-                "Input Cost",
+                "Input Cost (per 1M tokens)",
                 min_value=0.0,
-                max_value=10.0,
+                max_value=1000.0,
                 value=default_input_cost,
-                step=0.0001,
-                format="%.6f",
+                step=0.01,
+                format="%.4f",
                 key="judge_input_cost",
                 disabled=disabled
             )
 
         with col3:
             judge_output_cost = st.number_input(
-                "Output Cost",
+                "Output Cost (per 1M tokens)",
                 min_value=0.0,
-                max_value=1.0,
+                max_value=1000.0,
                 value=default_output_cost,
-                step=0.0001,
-                format="%.6f",
+                step=0.01,
+                format="%.4f",
                 key="judge_output_cost",
                 disabled=disabled
             )

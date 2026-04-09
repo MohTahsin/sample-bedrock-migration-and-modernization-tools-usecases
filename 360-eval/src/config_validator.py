@@ -98,7 +98,7 @@ def validate_judge_profile(profile: Dict, line_num: int) -> List[str]:
     errors = []
     
     # Required fields
-    required_fields = ["model_id", "region", "input_cost_per_1k", "output_cost_per_1k"]
+    required_fields = ["model_id", "region", "input_cost_per_1m", "output_cost_per_1m"]
     for field in required_fields:
         if field not in profile:
             errors.append(f"Line {line_num}: Missing required field '{field}'")
@@ -120,13 +120,13 @@ def validate_judge_profile(profile: Dict, line_num: int) -> List[str]:
             errors.append(f"Line {line_num}: region '{region}' doesn't match AWS region format (e.g., 'us-east-1')")
     
     # Validate costs
-    for cost_field in ["input_cost_per_1k", "output_cost_per_1k"]:
+    for cost_field in ["input_cost_per_1m", "output_cost_per_1m"]:
         if cost_field in profile:
             cost = profile[cost_field]
             if not isinstance(cost, (int, float)) or cost < 0:
                 errors.append(f"Line {line_num}: {cost_field} must be a non-negative number")
-            elif cost > 1.0:
-                errors.append(f"Line {line_num}: Warning: {cost_field} ({cost}) seems unusually high (>$1 per 1K tokens)")
+            elif cost > 1000.0:
+                errors.append(f"Line {line_num}: Warning: {cost_field} ({cost}) seems unusually high (>$1000 per 1M tokens)")
     
     return errors
 

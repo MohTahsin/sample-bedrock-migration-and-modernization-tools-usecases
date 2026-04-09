@@ -74,8 +74,8 @@ def generate_model_info(filename='models_profiles.jsonl'):
                         model_service_tiers[(model_id, region)] = data['service_tiers']
 
                     # Build cost map entry keyed by (model_id, region) for per-region pricing
-                    input_cost_key = 'input_token_cost' if 'input_token_cost' in data else ('input_cost_per_1k' if 'input_cost_per_1k' in data else 'input')
-                    output_token_key = 'output_token_cost' if 'output_token_cost' in data else ('output_cost_per_1k' if 'output_cost_per_1k' in data else 'output')
+                    input_cost_key = 'input_token_cost' if 'input_token_cost' in data else ('input_cost_per_1m' if 'input_cost_per_1m' in data else 'input')
+                    output_token_key = 'output_token_cost' if 'output_token_cost' in data else ('output_cost_per_1m' if 'output_cost_per_1m' in data else 'output')
                     cost_entry = {
                         "input": data[input_cost_key],
                         "output": data[output_token_key]

@@ -221,9 +221,11 @@ def extract_pricing(product: dict) -> dict:
     terms = product.get("terms", {})
 
     price_per_unit = None
+    price_unit = ""
     for offer in terms.get("OnDemand", {}).values():
         for dim in offer.get("priceDimensions", {}).values():
             price_per_unit = dim.get("pricePerUnit", {}).get("USD")
+            price_unit = dim.get("unit", "")
             break
 
     return {
@@ -235,7 +237,27 @@ def extract_pricing(product: dict) -> dict:
         "region_code": attrs.get("regionCode", ""),
         "group_description": attrs.get("groupDescription", ""),
         "price_per_unit_usd": price_per_unit,
+        "price_unit": price_unit,
     }
+
+
+def _normalize_to_per_1m(price: float, unit: str) -> float:
+    """Convert a price to per-1M-token format based on the unit string.
+
+    Args:
+        price: The raw price value.
+        unit: The unit string from the API (e.g., "1K tokens", "1M tokens").
+
+    Returns:
+        Price normalized to per-1M tokens.
+    """
+    unit_lower = unit.lower()
+    if "1k" in unit_lower or "thousand" in unit_lower:
+        return round(price * 1000, 2)
+    if "1m" in unit_lower or "million" in unit_lower or not unit:
+        return round(price, 2)
+    logger.warning("Unrecognized pricing unit '%s', assuming per-1M tokens", unit)
+    return round(price, 2)
 
 
 def is_on_demand_standard(entry: dict) -> bool:
@@ -244,7 +266,8 @@ def is_on_demand_standard(entry: dict) -> bool:
     feature = entry["feature"].lower()
     feature_type = entry["feature_type"].lower()
 
-    for skip in ("reserved", "batch", "cache", "long-context", "latency-optimized"):
+    for skip in ("reserved", "batch", "cache", "long-context", "latency-optimized",
+                  "-flex", "-priority", "-standard"):
         if skip in usagetype or skip in feature or skip in feature_type:
             return False
     return True
@@ -330,7 +353,7 @@ def _extract_costs_from_products(products: list, model_id: str, region: str) -> 
         if price is None:
             continue
 
-        price_float = float(price)
+        price_float = _normalize_to_per_1m(float(price), entry.get("price_unit", ""))
         if token_type == "input" and input_cost is None:
             input_cost = price_float
         elif token_type == "output" and output_cost is None:
@@ -399,7 +422,7 @@ def _resolve_bulk_from_products(
         if price is None:
             continue
         entry["_token_type"] = token_type
-        entry["_price_float"] = float(price)
+        entry["_price_float"] = _normalize_to_per_1m(float(price), entry.get("price_unit", ""))
         entries.append(entry)
 
     logger.info("Pre-filtered to %d on-demand pricing entries", len(entries))
@@ -622,7 +645,7 @@ def _scrape_webpage_pricing(model_id: str, region: str) -> dict:
     """Tier 3: Scrape AWS Bedrock pricing webpage for a single model.
 
     Returns {"input_cost": float|None, "output_cost": float|None}.
-    Costs are returned in per-1K-token format.
+    Costs are returned in per-1M-token format.
     """
     try:
         page_bytes = _fetch_url(_PRICING_PAGE_URL, timeout=20)
@@ -686,17 +709,17 @@ def _resolve_single_from_webpage(
     input_raw = float(input_entry["price"]) if input_entry.get("price") else None
     output_raw = float(output_entry["price"]) if output_entry.get("price") else None
 
-    # Convert to per-1K-token format:
-    #   {priceOf!svc!hash!*!1000} -> raw is per 1K tokens
-    #   {priceOf!svc!hash}        -> raw is per 1M tokens, divide by 1000
+    # Convert to per-1M-token format:
+    #   {priceOf!svc!hash!*!1000} -> raw is per 1K tokens, multiply by 1000
+    #   {priceOf!svc!hash}        -> raw is per 1M tokens, keep as-is
     input_cost = None
     output_cost = None
 
     if input_raw is not None:
-        input_cost = input_raw if matched["input_mult"] >= 1000 else input_raw / 1000.0
+        input_cost = round(input_raw * 1000 if matched["input_mult"] >= 1000 else input_raw, 2)
 
     if output_raw is not None:
-        output_cost = output_raw if matched["output_mult"] >= 1000 else output_raw / 1000.0
+        output_cost = round(output_raw * 1000 if matched["output_mult"] >= 1000 else output_raw, 2)
 
     return {"input_cost": input_cost, "output_cost": output_cost}
 
@@ -757,7 +780,7 @@ def get_model_pricing(model_id: str, region: str) -> dict:
 
     Returns:
         dict with keys: input_cost, output_cost, pricing_source
-        Costs are per 1K tokens.
+        Costs are per 1M tokens.
     """
     # Tier 1: Query Price List API (all 3 service codes)
     result = _query_price_list_api(model_id, region)
@@ -925,8 +948,8 @@ def resolve_all_pricing(force: bool = False) -> dict:
             source = "unavailable"
 
         cache["pricing"][cache_key] = {
-            "input_cost_per_1k": inp,
-            "output_cost_per_1k": out,
+            "input_cost_per_1m": inp,
+            "output_cost_per_1m": out,
             "pricing_source": source,
             "last_resolved": datetime.now(timezone.utc).isoformat(),
         }
@@ -949,7 +972,7 @@ def enrich_model_entry(entry: dict) -> dict:
 
     Handles both key formats:
         - Models: input_token_cost / output_token_cost
-        - Judges: input_cost_per_1k / output_cost_per_1k
+        - Judges: input_cost_per_1m / output_cost_per_1m
 
     Args:
         entry: A dict loaded from models_profiles.jsonl or judge_profiles.jsonl.
@@ -975,8 +998,8 @@ def enrich_model_entry(entry: dict) -> dict:
             )
         return entry
 
-    input_price = cached.get("input_cost_per_1k")
-    output_price = cached.get("output_cost_per_1k")
+    input_price = cached.get("input_cost_per_1m")
+    output_price = cached.get("output_cost_per_1m")
 
     # Update model profile keys
     if "input_token_cost" in entry and input_price is not None:
@@ -985,10 +1008,10 @@ def enrich_model_entry(entry: dict) -> dict:
         entry["output_token_cost"] = output_price
 
     # Update judge profile keys
-    if "input_cost_per_1k" in entry and input_price is not None:
-        entry["input_cost_per_1k"] = input_price
-    if "output_cost_per_1k" in entry and output_price is not None:
-        entry["output_cost_per_1k"] = output_price
+    if "input_cost_per_1m" in entry and input_price is not None:
+        entry["input_cost_per_1m"] = input_price
+    if "output_cost_per_1m" in entry and output_price is not None:
+        entry["output_cost_per_1m"] = output_price
 
     return entry
 
@@ -1357,7 +1380,7 @@ def generate_models_profiles() -> list[dict]:
             continue
 
         if pricing[key][token_type] is None:
-            pricing[key][token_type] = float(price)
+            pricing[key][token_type] = _normalize_to_per_1m(float(price), entry.get("price_unit", ""))
 
     # Step 4: Webpage scrape fallback for models with no API pricing at all
     models_with_pricing = set(mid for (mid, _) in pricing.keys() if pricing[(mid, _)]["input"] is not None)

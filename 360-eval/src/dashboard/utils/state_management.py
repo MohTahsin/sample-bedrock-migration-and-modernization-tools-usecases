@@ -683,13 +683,13 @@ def extract_judges_from_profile_files(eval_id, eval_name):
                     return status_data["judges_data"]
 
         # If status file doesn't exist, return default
-        return [{"model_id": "Unknown Judge", "region": "Unknown", "input_cost_per_1k": 0, "output_cost_per_1k": 0}]
+        return [{"model_id": "Unknown Judge", "region": "Unknown", "input_cost_per_1m": 0, "output_cost_per_1m": 0}]
         
     except Exception as e:
         import logging
         logging.warning(f"Could not extract judges for {eval_id}: {str(e)}")
     
-    return [{"model_id": "Unknown Judge", "region": "Unknown", "input_cost_per_1k": 0, "output_cost_per_1k": 0}]
+    return [{"model_id": "Unknown Judge", "region": "Unknown", "input_cost_per_1m": 0, "output_cost_per_1m": 0}]
 
 
 def rebuild_evaluation_lists():

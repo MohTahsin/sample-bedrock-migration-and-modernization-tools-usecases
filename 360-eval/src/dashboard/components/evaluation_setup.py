@@ -661,7 +661,7 @@ class EvaluationSetupComponent:
             normalized.append({
                 "id": judge.get("model_id") or judge.get("id"),
                 "region": judge.get("region", ""),
-                "input_cost": judge.get("input_cost_per_1k") or judge.get("input_cost", 0),
-                "output_cost": judge.get("output_cost_per_1k") or judge.get("output_cost", 0)
+                "input_cost": judge.get("input_cost_per_1m") or judge.get("input_cost", 0),
+                "output_cost": judge.get("output_cost_per_1m") or judge.get("output_cost", 0)
             })
         return normalized

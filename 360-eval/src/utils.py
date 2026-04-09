@@ -905,8 +905,8 @@ def run_inference(model_name: str,
             total_runtime = end_time - start_time
 
             throughput_tps = output_tokens / total_runtime if total_runtime > 0 else 0
-            tot_input_cost = input_tokens * (input_cost / 1000)
-            tot_output_cost = output_tokens * (output_cost / 1000)
+            tot_input_cost = input_tokens * (input_cost / 1_000_000)
+            tot_output_cost = output_tokens * (output_cost / 1_000_000)
 
             # Capture finish_reason
             finish_reason = payload.choices[0].finish_reason if hasattr(payload.choices[0], 'finish_reason') else None
@@ -959,8 +959,8 @@ def run_inference(model_name: str,
                 input_tokens = 0.0000001
 
             tokens_per_sec = output_tokens / total_runtime if total_runtime > 0 else 0
-            tot_input_cost = input_tokens * (input_cost / 1000)
-            tot_output_cost = output_tokens * (output_cost / 1000)
+            tot_input_cost = input_tokens * (input_cost / 1_000_000)
+            tot_output_cost = output_tokens * (output_cost / 1_000_000)
 
             return {
                 "model_response": actual_response,

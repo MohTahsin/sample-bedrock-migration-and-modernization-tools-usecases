@@ -168,8 +168,8 @@ def evaluate_with_judges(judges,
             # Defensive cost calculation with defaults
             judge_input_tokens = r.get("judge_input_tokens", 0)
             judge_output_tokens = r.get("judge_output_tokens", 0)
-            r['judge_input_token_cost'] = judge_input_tokens * (j["input_cost_per_1k"] / 1000)
-            r['judge_output_token_cost'] = judge_output_tokens * (j["output_cost_per_1k"] / 1000)
+            r['judge_input_token_cost'] = judge_input_tokens * (j["input_cost_per_1m"] / 1_000_000)
+            r['judge_output_token_cost'] = judge_output_tokens * (j["output_cost_per_1m"] / 1_000_000)
             logging.debug(
                 f"Successfully evaluated with judge {j['model_id']}, judgment: {r.get('judgment', 'Unknown')}")
             return {"model": j["model_id"], **r}
