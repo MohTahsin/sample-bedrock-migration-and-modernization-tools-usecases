@@ -6,6 +6,8 @@ from aws_cdk import (
     aws_dynamodb as dynamodb,
     aws_s3 as s3,
     aws_iam as iam,
+    aws_events as events,
+    aws_events_targets as targets,
 )
 from constructs import Construct
 
@@ -82,4 +84,35 @@ class BackendStack(Stack):
         self.api.root.add_proxy(
             default_integration=backend_integration,
             any_method=True,
+        )
+
+        # ---------------------------------------------------------------------
+        # Pricing Refresh Lambda (shared code, separate handler)
+        # ---------------------------------------------------------------------
+
+        self.pricing_refresh_lambda = _lambda.Function(
+            self,
+            "PricingRefreshLambda",
+            function_name="isv-observability-pricing-refresh",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            handler="pricing_refresh_handler.lambda_handler",
+            code=_lambda.Code.from_asset("../backend"),
+            memory_size=512,
+            timeout=Duration.seconds(300),
+            role=backend_lambda_role,
+            environment={
+                "PRICING_CACHE_TABLE": pricing_cache_table.table_name,
+            },
+        )
+
+        # Weekly EventBridge rule to refresh pricing
+        self.pricing_refresh_rule = events.Rule(
+            self,
+            "PricingRefreshSchedule",
+            rule_name="isv-observability-pricing-refresh-weekly",
+            description="Refresh Bedrock model pricing cache weekly",
+            schedule=events.Schedule.rate(Duration.days(7)),
+        )
+        self.pricing_refresh_rule.add_target(
+            targets.LambdaFunction(self.pricing_refresh_lambda)
         )

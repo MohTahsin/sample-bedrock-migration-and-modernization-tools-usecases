@@ -1,8 +1,9 @@
 """Lambda handler for model and pricing discovery.
 
 Operations:
-    GET /discovery/models  - List available Bedrock foundation models
-    GET /discovery/pricing - Get pricing for a model+region (3-tier fallback)
+    GET  /discovery/models          - List available Bedrock foundation models
+    GET  /discovery/pricing         - Get pricing for a model+region (DynamoDB lookup)
+    POST /discovery/refresh-pricing - Trigger bulk pricing refresh
 
 Environment variables:
     PRICING_CACHE_TABLE - DynamoDB table for pricing cache
@@ -34,6 +35,8 @@ def handler(event, context):
             return _list_models(event)
         elif http_method == "GET" and path.endswith("/discovery/pricing"):
             return _get_pricing(event)
+        elif http_method == "POST" and path.endswith("/discovery/refresh-pricing"):
+            return _refresh_pricing(event)
 
         return _response(404, {"error": "Not found"})
 
@@ -82,7 +85,7 @@ def _list_models(event):
 def _get_pricing(event):
     """GET /discovery/pricing - Get pricing for a model+region.
 
-    Flow: DynamoDB cache (24h) → Pricing API + known prices → cache result.
+    Pure DynamoDB cache lookup — no API calls at request time.
     """
     params = event.get("queryStringParameters") or {}
     model_id = params.get("model_id", "").strip()
@@ -91,39 +94,7 @@ def _get_pricing(event):
     if not model_id or not region:
         return _response(400, {"error": "model_id and region query parameters are required"})
 
-    cache_key = f"{region}#{model_id}"
-
-    # 1. Check DynamoDB cache — return immediately if < 24h old
-    if PRICING_CACHE_TABLE:
-        try:
-            table = pricing_service._get_pricing_table()
-            cached = pricing_service.get_cached_pricing(table, cache_key)
-            if cached:
-                return _response(200, {
-                    "model_id": model_id,
-                    "region": region,
-                    "input_cost": cached["input_cost"],
-                    "output_cost": cached["output_cost"],
-                    "pricing_source": "cached",
-                })
-        except Exception as exc:
-            logger.warning("Cache lookup failed for %s: %s", cache_key, exc)
-
-    # 2. Query Pricing API + fill gaps from known prices
-    logger.info("Cache miss for %s — querying pricing", cache_key)
     pricing_data = pricing_service.get_model_pricing(model_id, region)
-
-    # 3. Cache the result in DynamoDB for 24h
-    if PRICING_CACHE_TABLE and pricing_data.get("input_cost") is not None:
-        try:
-            table = pricing_service._get_pricing_table()
-            pricing_service.cache_pricing(table, cache_key, {
-                "model_id": model_id,
-                "region": region,
-                **pricing_data,
-            })
-        except Exception as exc:
-            logger.warning("Failed to cache pricing for %s: %s", cache_key, exc)
 
     return _response(200, {
         "model_id": model_id,
@@ -131,6 +102,21 @@ def _get_pricing(event):
         "input_cost": pricing_data.get("input_cost"),
         "output_cost": pricing_data.get("output_cost"),
         "pricing_source": pricing_data.get("pricing_source", "unknown"),
+    })
+
+
+def _refresh_pricing(event):
+    """POST /discovery/refresh-pricing - Trigger bulk pricing refresh.
+
+    Fetches ALL model pricing from the Price List API and webpage,
+    then batch-writes everything to DynamoDB.
+    """
+    logger.info("Manual pricing refresh triggered")
+    summary = pricing_service.refresh_all_pricing()
+
+    return _response(200, {
+        "message": "Pricing refresh complete",
+        **summary,
     })
 
 
@@ -146,7 +132,7 @@ def _response(status_code: int, body: dict) -> dict:
             "Content-Type": "application/json",
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Headers": "Content-Type,Authorization",
-            "Access-Control-Allow-Methods": "GET,OPTIONS",
+            "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
         },
         "body": json.dumps(body, default=str),
     }
