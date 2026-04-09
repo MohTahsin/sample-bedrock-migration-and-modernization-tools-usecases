@@ -119,10 +119,10 @@ def _get_pricing(model_id: str) -> dict | None:
         return None
 
 
-def _calculate_cost(token_count: int, per_thousand_rate) -> float:
-    """Cost = rate_per_1K_tokens * (tokens / 1_000)."""
-    rate = float(per_thousand_rate) if isinstance(per_thousand_rate, Decimal) else per_thousand_rate
-    return rate * (token_count / 1_000)
+def _calculate_cost(token_count: int, per_million_rate) -> float:
+    """Cost = rate_per_1M_tokens * (tokens / 1_000_000)."""
+    rate = float(per_million_rate) if isinstance(per_million_rate, Decimal) else per_million_rate
+    return rate * (token_count / 1_000_000)
 
 
 def _emit_metrics(

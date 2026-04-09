@@ -122,9 +122,11 @@ def extract_pricing(product: dict) -> dict:
     terms = product.get("terms", {})
 
     price_per_unit = None
+    price_unit = ""
     for offer in terms.get("OnDemand", {}).values():
         for dim in offer.get("priceDimensions", {}).values():
             price_per_unit = dim.get("pricePerUnit", {}).get("USD")
+            price_unit = dim.get("unit", "")
             break
 
     return {
@@ -136,7 +138,27 @@ def extract_pricing(product: dict) -> dict:
         "region_code": attrs.get("regionCode", ""),
         "group_description": attrs.get("groupDescription", ""),
         "price_per_unit_usd": price_per_unit,
+        "price_unit": price_unit,
     }
+
+
+def _normalize_to_per_1m(price: float, unit: str) -> float:
+    """Convert a price to per-1M-token format based on the unit string.
+
+    Args:
+        price: The raw price value.
+        unit: The unit string from the API (e.g., "1K tokens", "1M tokens").
+
+    Returns:
+        Price normalized to per-1M tokens, rounded to 2 decimal places.
+    """
+    unit_lower = unit.lower()
+    if "1k" in unit_lower or "thousand" in unit_lower:
+        return round(price * 1000, 2)
+    if "1m" in unit_lower or "million" in unit_lower or not unit:
+        return round(price, 2)
+    logger.warning("Unrecognized pricing unit '%s', assuming per-1M tokens", unit)
+    return round(price, 2)
 
 
 def is_on_demand_standard(entry: dict) -> bool:
@@ -203,7 +225,7 @@ def _extract_costs_from_products(products: list, model_id: str, region: str) -> 
         if price is None:
             continue
 
-        price_float = float(price)
+        price_float = _normalize_to_per_1m(float(price), entry.get("price_unit", ""))
         if token_type == "input" and input_cost is None:
             input_cost = price_float
         elif token_type == "output" and output_cost is None:
@@ -510,29 +532,17 @@ def _scrape_webpage_pricing(model_id: str, region: str) -> dict:
         input_raw = float(input_entry["price"]) if input_entry.get("price") else None
         output_raw = float(output_entry["price"]) if output_entry.get("price") else None
 
-        # 6. Convert to per-1K-token format (matching Price List API convention)
-        #
-        # The priceOf multiplier tells us the raw unit:
-        #   {priceOf!svc!hash!*!1000} → raw is per 1K tokens, display = raw * 1000 (per 1M)
-        #   {priceOf!svc!hash}        → raw is per 1M tokens, display = raw (per 1M)
-        #
-        # We want per 1K tokens (matching Price List API). So:
-        #   With mult=1000: per_1K = raw (already per 1K)
-        #   With mult=1:    per_1K = raw / 1000 (convert per 1M to per 1K)
+        # 6. Convert to per-1M-token format:
+        #   {priceOf!svc!hash!*!1000} → raw is per 1K tokens, multiply by 1000
+        #   {priceOf!svc!hash}        → raw is per 1M tokens, keep as-is
         input_cost = None
         output_cost = None
 
         if input_raw is not None:
-            if matched["input_mult"] >= 1000:
-                input_cost = input_raw
-            else:
-                input_cost = input_raw / 1000.0
+            input_cost = round(input_raw * 1000 if matched["input_mult"] >= 1000 else input_raw, 2)
 
         if output_raw is not None:
-            if matched["output_mult"] >= 1000:
-                output_cost = output_raw
-            else:
-                output_cost = output_raw / 1000.0
+            output_cost = round(output_raw * 1000 if matched["output_mult"] >= 1000 else output_raw, 2)
 
         return {"input_cost": input_cost, "output_cost": output_cost}
 
