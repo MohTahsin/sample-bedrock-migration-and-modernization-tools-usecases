@@ -14,6 +14,7 @@ from ..utils.constants import (
     JUDGE_MODEL_TO_REGIONS,
     JUDGE_REGION_TO_MODELS,
     MODEL_SERVICE_TIERS,
+    TIER_COST_MAP,
 )
 from ..utils.state_management import save_current_evaluation
 
@@ -25,26 +26,42 @@ class ModelConfigurationComponent:
         # Initialize session state for model/region filtering
         pass
     
+    def _lookup_costs(self, model, region, tier="default"):
+        """Look up pricing for model+region+tier with fallback."""
+        tier_costs = TIER_COST_MAP.get((model, region, tier))
+        if tier_costs:
+            return tier_costs
+        return DEFAULT_COST_MAP.get((model, region)) or DEFAULT_COST_MAP.get((model, "N/A"), {"input": 0.001, "output": 0.002})
+
     def _on_region_change(self):
         """Handle region selection change and update pricing."""
         selected_region = st.session_state.aws_region
-
-        # Update costs for the currently selected model in the new region
         selected_model = st.session_state.get("bedrock_model_select")
         if selected_model:
-            costs = DEFAULT_COST_MAP.get((selected_model, selected_region)) or DEFAULT_COST_MAP.get((selected_model, "N/A"), {"input": 0.001, "output": 0.002})
+            selected_tier = st.session_state.get("bedrock_service_tier_select", "default")
+            costs = self._lookup_costs(selected_model, selected_region, selected_tier)
             st.session_state.bedrock_input_cost = costs["input"]
             st.session_state.bedrock_output_cost = costs["output"]
-    
+
     def _on_model_change(self):
         """Handle model selection change and update pricing."""
         selected_model = st.session_state.get("bedrock_model_select")
         if not selected_model:
             return
-
-        # Update cost fields to reflect the newly selected model's pricing for the current region
         current_region = st.session_state.get("aws_region", "us-east-1")
-        costs = DEFAULT_COST_MAP.get((selected_model, current_region)) or DEFAULT_COST_MAP.get((selected_model, "N/A"), {"input": 0.001, "output": 0.002})
+        selected_tier = st.session_state.get("bedrock_service_tier_select", "default")
+        costs = self._lookup_costs(selected_model, current_region, selected_tier)
+        st.session_state.bedrock_input_cost = costs["input"]
+        st.session_state.bedrock_output_cost = costs["output"]
+
+    def _on_tier_change(self):
+        """Handle service tier change and update pricing."""
+        selected_model = st.session_state.get("bedrock_model_select")
+        if not selected_model:
+            return
+        selected_region = st.session_state.get("aws_region", "us-east-1")
+        selected_tier = st.session_state.get("bedrock_service_tier_select", "default")
+        costs = self._lookup_costs(selected_model, selected_region, selected_tier)
         st.session_state.bedrock_input_cost = costs["input"]
         st.session_state.bedrock_output_cost = costs["output"]
     
@@ -252,7 +269,8 @@ class ModelConfigurationComponent:
                         "Service Tier",
                         options=available_tiers,
                         key=f"{prefix}_service_tier_select",
-                        help="Select the service tier for this model. You can add the same model multiple times with different tiers."
+                        on_change=self._on_tier_change,
+                        help="Select the service tier for this model. Pricing updates automatically."
                     )
                 else:
                     # Fallback to default if no tiers available
@@ -260,6 +278,7 @@ class ModelConfigurationComponent:
                         "Service Tier",
                         options=["default"],
                         key=f"{prefix}_service_tier_select",
+                        on_change=self._on_tier_change,
                         help="Service tier for this model"
                     )
             else:

@@ -273,6 +273,33 @@ def is_on_demand_standard(entry: dict) -> bool:
     return True
 
 
+def _is_on_demand_tier(entry: dict) -> bool:
+    """Filter to on-demand entries including tier variants (flex/priority/standard).
+
+    Like is_on_demand_standard but allows tier suffixes through.
+    """
+    usagetype = entry["usagetype"].lower()
+    feature = entry["feature"].lower()
+    feature_type = entry["feature_type"].lower()
+
+    for skip in ("reserved", "batch", "cache", "long-context", "latency-optimized"):
+        if skip in usagetype or skip in feature or skip in feature_type:
+            return False
+    return True
+
+
+def _detect_tier(usagetype: str) -> str:
+    """Detect service tier from usagetype string."""
+    usagetype = usagetype.lower()
+    if "-priority" in usagetype:
+        return "priority"
+    if "-flex" in usagetype:
+        return "flex"
+    if "-standard" in usagetype:
+        return "standard"
+    return "default"
+
+
 def classify_token_type(entry: dict) -> str:
     """Determine if this is input or output token pricing."""
     usagetype = entry["usagetype"].lower()
@@ -1341,6 +1368,7 @@ def generate_models_profiles() -> list[dict]:
     # Build pricing and tier maps from Price List API
     pricing = defaultdict(lambda: {"input": None, "output": None})
     service_tiers = defaultdict(set)
+    tier_pricing = defaultdict(lambda: defaultdict(lambda: {"input": None, "output": None}))
 
     for p in products:
         attrs = p.get("product", {}).get("attributes", {})
@@ -1360,18 +1388,12 @@ def generate_models_profiles() -> list[dict]:
         key = (model_id, region)
 
         # Extract service tier
-        if "-priority" in usagetype:
-            service_tiers[key].add("priority")
-        elif "-flex" in usagetype:
-            service_tiers[key].add("flex")
-        elif "-standard" in usagetype:
-            service_tiers[key].add("standard")
-        else:
-            service_tiers[key].add("default")
+        tier = _detect_tier(usagetype)
+        service_tiers[key].add(tier)
 
-        # Extract on-demand standard pricing
+        # Extract pricing for all on-demand tiers
         entry = extract_pricing(p)
-        if not is_on_demand_standard(entry):
+        if not _is_on_demand_tier(entry):
             continue
 
         token_type = classify_token_type(entry)
@@ -1379,8 +1401,20 @@ def generate_models_profiles() -> list[dict]:
         if price is None or token_type == "unknown":
             continue
 
-        if pricing[key][token_type] is None:
-            pricing[key][token_type] = _normalize_to_per_1m(float(price), entry.get("price_unit", ""))
+        normalized_price = _normalize_to_per_1m(float(price), entry.get("price_unit", ""))
+        is_cross_region = "mantle" in usagetype or "cross-region" in usagetype
+
+        if is_cross_region:
+            # Cross-region: preferred source for ALL tiers — always overwrite
+            tier_pricing[key][tier][token_type] = normalized_price
+            if tier == "default":
+                pricing[key][token_type] = normalized_price
+        else:
+            # Direct regional: use as fallback if no cross-region found yet
+            if tier_pricing[key][tier][token_type] is None:
+                tier_pricing[key][tier][token_type] = normalized_price
+            if tier == "default" and pricing[key][token_type] is None:
+                pricing[key][token_type] = normalized_price
 
     # Step 4: Webpage scrape fallback for models with no API pricing at all
     models_with_pricing = set(mid for (mid, _) in pricing.keys() if pricing[(mid, _)]["input"] is not None)
@@ -1435,12 +1469,22 @@ def generate_models_profiles() -> list[dict]:
             if "default" not in tiers:
                 tiers = ["default"] + tiers
 
+            # Build per-tier pricing map
+            tp = {}
+            for t in tiers:
+                tc = tier_pricing.get((model_id, region), {}).get(t, {"input": None, "output": None})
+                if tc["input"] is not None and tc["output"] is not None:
+                    tp[t] = {"input": tc["input"], "output": tc["output"]}
+                else:
+                    tp[t] = {"input": costs["input"], "output": costs["output"]}
+
             entries.append({
                 "model_id": f"bedrock/{full_model_id}",
                 "region": region,
                 "input_token_cost": costs["input"],
                 "output_token_cost": costs["output"],
                 "service_tiers": tiers,
+                "tier_pricing": tp,
             })
 
     logger.info("Generated %d model+region entries", len(entries))

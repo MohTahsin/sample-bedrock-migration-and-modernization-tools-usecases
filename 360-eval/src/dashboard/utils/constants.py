@@ -37,6 +37,7 @@ def generate_model_info(filename='models_profiles.jsonl'):
         model_to_regions = {}
         region_to_models = {}
         model_service_tiers = {}  # (model_id, region) -> list of tiers
+        tier_cost_map = {}  # (model_id, region, tier) -> {"input": float, "output": float}
 
         # Read and process the JSONL file
         with open(file_path, 'r') as file:
@@ -73,6 +74,17 @@ def generate_model_info(filename='models_profiles.jsonl'):
                     if 'service_tiers' in data and region and region != "N/A":
                         model_service_tiers[(model_id, region)] = data['service_tiers']
 
+                    # Build tier cost map
+                    if 'tier_pricing' in data and region and region != "N/A":
+                        for tier_name, tier_costs in data['tier_pricing'].items():
+                            tier_cost_map[(model_id, region, tier_name)] = {
+                                "input": tier_costs["input"],
+                                "output": tier_costs["output"]
+                            }
+                    elif region and region != "N/A":
+                        for tier_name in data.get('service_tiers', ['default']):
+                            tier_cost_map[(model_id, region, tier_name)] = cost_entry
+
                     # Build cost map entry keyed by (model_id, region) for per-region pricing
                     input_cost_key = 'input_token_cost' if 'input_token_cost' in data else ('input_cost_per_1m' if 'input_cost_per_1m' in data else 'input')
                     output_token_key = 'output_token_cost' if 'output_token_cost' in data else ('output_cost_per_1m' if 'output_cost_per_1m' in data else 'output')
@@ -98,14 +110,15 @@ def generate_model_info(filename='models_profiles.jsonl'):
             "MODEL_TO_REGIONS": model_to_regions,
             "REGION_TO_MODELS": region_to_models,
             "MODEL_SERVICE_TIERS": model_service_tiers,
+            "TIER_COST_MAP": tier_cost_map,
         }
 
     except FileNotFoundError:
         print(f"Error: File '{file_path}' not found.")
-        return {"DEFAULT_BEDROCK_MODELS": [], "DEFAULT_OPENAI_MODELS": [], "DEFAULT_COST_MAP": {}, "MODEL_TO_REGIONS": {}, "REGION_TO_MODELS": {}, "MODEL_SERVICE_TIERS": {}}
+        return {"DEFAULT_BEDROCK_MODELS": [], "DEFAULT_OPENAI_MODELS": [], "DEFAULT_COST_MAP": {}, "MODEL_TO_REGIONS": {}, "REGION_TO_MODELS": {}, "MODEL_SERVICE_TIERS": {}, "TIER_COST_MAP": {}}
     except Exception as e:
         print(f"Error: {str(e)}")
-        return {"DEFAULT_BEDROCK_MODELS": [], "DEFAULT_OPENAI_MODELS": [], "DEFAULT_COST_MAP": {}, "MODEL_TO_REGIONS": {}, "REGION_TO_MODELS": {}, "MODEL_SERVICE_TIERS": {}}
+        return {"DEFAULT_BEDROCK_MODELS": [], "DEFAULT_OPENAI_MODELS": [], "DEFAULT_COST_MAP": {}, "MODEL_TO_REGIONS": {}, "REGION_TO_MODELS": {}, "MODEL_SERVICE_TIERS": {}, "TIER_COST_MAP": {}}
 
 """Constants for the Streamlit dashboard."""
 
@@ -198,6 +211,7 @@ DEFAULT_COST_MAP = defaults['DEFAULT_COST_MAP']
 MODEL_TO_REGIONS = defaults['MODEL_TO_REGIONS']
 REGION_TO_MODELS = defaults['REGION_TO_MODELS']
 MODEL_SERVICE_TIERS = defaults['MODEL_SERVICE_TIERS']
+TIER_COST_MAP = defaults['TIER_COST_MAP']
 
 # Load judge data
 judges = generate_model_info('judge_profiles.jsonl')
