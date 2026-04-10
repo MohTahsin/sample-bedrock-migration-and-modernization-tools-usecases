@@ -1,13 +1,17 @@
-"""Bedrock model pricing with bulk ingestion and DynamoDB cache.
+"""Bedrock model pricing with 3-tier fallback and DynamoDB caching.
 
-Architecture:
+Ported from 360-eval/src/bedrock_pricing.py. Uses the exact same extraction
+pipeline (Price List API + webpage scraping) but stores results in DynamoDB
+instead of a local file cache.
+
+Flow:
     - refresh_all_pricing() discovers ALL Bedrock models via
-      list_foundation_models(), fetches ALL pricing from the Price List API,
-      fuzzy-matches each model, and batch-writes everything to DynamoDB.
+      list_foundation_models(), fetches ALL pricing from the Price List API
+      with webpage fallback, and batch-writes everything to DynamoDB.
       Called at deploy time (seed script), weekly (EventBridge + Lambda),
       or on-demand (POST /discovery/refresh-pricing).
-    - get_model_pricing() is a pure DynamoDB lookup — no API calls at
-      request time.
+    - get_model_pricing() checks DynamoDB cache first, then falls back to
+      the 3-tier fetch for cache misses.
 
 Environment variables:
     PRICING_CACHE_TABLE - DynamoDB table for pricing cache
@@ -27,6 +31,10 @@ from typing import Optional
 import boto3
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
 
 SERVICE_CODES = [
     "AmazonBedrock",
@@ -89,6 +97,44 @@ _REGION_DISPLAY_NAMES = {
 
 
 # ---------------------------------------------------------------------------
+# Model ID helpers
+# ---------------------------------------------------------------------------
+
+def strip_model_id_for_pricing(model_id: str) -> str:
+    """Strip 'bedrock/' prefix and cross-region prefixes for API lookup.
+
+    Examples:
+        bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0
+            -> anthropic.claude-sonnet-4-5-20250929-v1:0
+        bedrock/deepseek.v3-v1:0
+            -> deepseek.v3-v1:0
+        bedrock/converse/us.amazon.nova-2-lite-v1:0
+            -> amazon.nova-2-lite-v1:0
+    """
+    cleaned = model_id
+    for prefix in ("bedrock/converse/", "bedrock/"):
+        if cleaned.startswith(prefix):
+            cleaned = cleaned[len(prefix):]
+            break
+    # Remove cross-region inference prefixes (us., eu., ap., etc.)
+    cleaned = re.sub(r"^[a-z]{2}\.", "", cleaned)
+    return cleaned
+
+
+def _cache_key(model_id: str, region: str) -> str:
+    """Build cache key from model_id and region.
+
+    Strips bedrock/ but keeps cross-region prefix for uniqueness.
+    """
+    stripped = model_id
+    for prefix in ("bedrock/converse/", "bedrock/"):
+        if stripped.startswith(prefix):
+            stripped = stripped[len(prefix):]
+            break
+    return f"{region}#{stripped}"
+
+
+# ---------------------------------------------------------------------------
 # Pricing API helpers
 # ---------------------------------------------------------------------------
 
@@ -127,7 +173,7 @@ def extract_pricing(product: dict) -> dict:
             break
 
     return {
-        "model_id": attrs.get("modelId", "") or attrs.get("model", ""),
+        "model_id": attrs.get("modelId", ""),
         "usagetype": attrs.get("usagetype", ""),
         "inference_type": attrs.get("inferenceType", ""),
         "feature": attrs.get("feature", ""),
@@ -140,7 +186,15 @@ def extract_pricing(product: dict) -> dict:
 
 
 def _normalize_to_per_1m(price: float, unit: str) -> float:
-    """Convert a price to per-1M-token format based on the unit string."""
+    """Convert a price to per-1M-token format based on the unit string.
+
+    Args:
+        price: The raw price value.
+        unit: The unit string from the API (e.g., "1K tokens", "1M tokens").
+
+    Returns:
+        Price normalized to per-1M tokens.
+    """
     unit_lower = unit.lower()
     if "1k" in unit_lower or "thousand" in unit_lower:
         return round(price * 1000, 2)
@@ -151,23 +205,14 @@ def _normalize_to_per_1m(price: float, unit: str) -> float:
 
 
 def is_on_demand_standard(entry: dict) -> bool:
-    """Filter to only default on-demand inference entries.
-
-    Excludes: reserved, batch, cache, long-context, latency-optimized,
-    flex/priority/standard tiers, provisioned throughput, model customization,
-    and training entries.
-    """
+    """Filter to only on-demand, non-reserved, non-batch, non-cache entries."""
     usagetype = entry["usagetype"].lower()
     feature = entry["feature"].lower()
     feature_type = entry["feature_type"].lower()
-    inference_type = entry.get("inference_type", "").lower()
-
-    all_fields = usagetype + " " + feature + " " + feature_type + " " + inference_type
 
     for skip in ("reserved", "batch", "cache", "long-context", "latency-optimized",
-                  "flex", "priority", "standard", "provisioned", "customization",
-                  "custom-model", "training"):
-        if skip in all_fields:
+                  "-flex", "-priority", "-standard"):
+        if skip in usagetype or skip in feature or skip in feature_type:
             return False
     return True
 
@@ -191,6 +236,8 @@ def _matches_model(entry: dict, model_id: str, region: str) -> bool:
         return False
 
     # Strip bare trailing version suffix like ":0" that isn't part of a "-vN:N" pattern
+    # e.g., "kimi-k2-thinking:0" -> "kimi-k2-thinking"
+    # but keep "claude-sonnet-4-5-20250929-v1:0" intact
     clean_id = re.sub(r"(?<!-v\d):(\d+)$", "", model_id)
     model_lower = clean_id.lower()
     entry_model_id = entry.get("model_id", "").lower()
@@ -213,10 +260,13 @@ def _matches_model(entry: dict, model_id: str, region: str) -> bool:
             return True
 
     # Token-overlap match: split on separators and check overlap
+    # Handles vendor name mismatches (e.g., "moonshot" vs "moonshotai")
     model_parts = re.split(r"[-._:]", model_lower)
     model_parts = [p for p in model_parts if p]
     if entry_usagetype and len(model_parts) > 1:
         usage_tokens = set(re.split(r"[-._:]", entry_usagetype)) - {""}
+        # For "vendor.model-name" format, skip the vendor prefix (first part before ".")
+        # and require all remaining tokens to appear in usagetype
         if "." in model_id:
             dot_pos = model_lower.index(".")
             non_vendor_parts = re.split(r"[-._:]", model_lower[dot_pos + 1:])
@@ -229,12 +279,45 @@ def _matches_model(entry: dict, model_id: str, region: str) -> bool:
     return False
 
 
+def _extract_costs_from_products(products: list, model_id: str, region: str) -> dict:
+    """Extract input/output costs from a list of products for a model+region."""
+    input_cost = None
+    output_cost = None
+
+    for p in products:
+        entry = extract_pricing(p)
+
+        if not _matches_model(entry, model_id, region):
+            continue
+        if not is_on_demand_standard(entry):
+            continue
+
+        token_type = classify_token_type(entry)
+        price = entry["price_per_unit_usd"]
+        if price is None:
+            continue
+
+        price_float = _normalize_to_per_1m(float(price), entry.get("price_unit", ""))
+        if token_type == "input" and input_cost is None:
+            input_cost = price_float
+        elif token_type == "output" and output_cost is None:
+            output_cost = price_float
+
+        if input_cost is not None and output_cost is not None:
+            break
+
+    return {"input_cost": input_cost, "output_cost": output_cost}
+
+
 # ---------------------------------------------------------------------------
-# Tier 1: Fetch all products and resolve pricing via fuzzy matching
+# Tier 1: Query all 3 service codes
 # ---------------------------------------------------------------------------
 
 def _fetch_all_products_parallel() -> list:
-    """Fetch all products from all 3 service codes in parallel."""
+    """Fetch all products from all 3 service codes in parallel.
+
+    Returns a combined list of all product entries.
+    """
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
     pricing_client = boto3.client("pricing", region_name=PRICING_CLIENT_REGION)
@@ -263,16 +346,14 @@ def _resolve_bulk_from_products(
 ) -> dict[str, dict]:
     """Match all (model_id, region) pairs against a pre-fetched product list.
 
-    Uses fuzzy matching via _matches_model() — no hardcoded model lists needed.
-
     Args:
         products: Combined product list from all service codes.
-        models: List of (model_id, region) tuples.
+        models: List of (stripped_model_id, region) tuples.
 
     Returns:
         Dict keyed by "region#model_id" with {input_cost, output_cost} values.
     """
-    # Pre-extract and filter all pricing entries once
+    # Pre-extract all pricing entries once
     entries = []
     for p in products:
         entry = extract_pricing(p)
@@ -313,50 +394,36 @@ def _resolve_bulk_from_products(
     return results
 
 
-# ---------------------------------------------------------------------------
-# Discover all Bedrock models across regions
-# ---------------------------------------------------------------------------
+def _query_price_list_api(model_id: str, region: str) -> dict:
+    """Tier 1: Query AWS Price List API across all 3 service codes.
 
-def _discover_all_models() -> list[tuple[str, str]]:
-    """Discover all Bedrock model IDs across all regions.
-
-    Calls list_foundation_models() in each region to get the full set of
-    (model_id, region) pairs. No hardcoded model lists.
-
-    Returns:
-        List of (model_id, region) tuples.
+    Returns {"input_cost": float|None, "output_cost": float|None}.
     """
-    from concurrent.futures import ThreadPoolExecutor, as_completed
+    products = _fetch_all_products_parallel()
+    return _extract_costs_from_products(products, model_id, region)
 
-    regions = list(_REGION_DISPLAY_NAMES.keys())
-    all_models: list[tuple[str, str]] = []
-    seen: set[tuple[str, str]] = set()
 
-    def list_models_in_region(region: str) -> list[tuple[str, str]]:
-        try:
-            client = boto3.client("bedrock", region_name=region)
-            resp = client.list_foundation_models()
-            pairs = []
-            for m in resp.get("modelSummaries", []):
-                model_id = m.get("modelId", "")
-                if model_id:
-                    pairs.append((model_id, region))
-            return pairs
-        except Exception as exc:
-            logger.warning("Failed to list models in %s: %s", region, exc)
-            return []
+# ---------------------------------------------------------------------------
+# Tier 2: Re-query AmazonBedrockService only for missing output pricing
+# ---------------------------------------------------------------------------
 
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        futures = {executor.submit(list_models_in_region, r): r for r in regions}
-        for future in as_completed(futures):
-            for pair in future.result():
-                if pair not in seen:
-                    seen.add(pair)
-                    all_models.append(pair)
+def _query_bedrock_service_only(model_id: str, region: str) -> dict:
+    """Tier 2: Re-query only AmazonBedrockService for missing pricing.
 
-    logger.info("Discovered %d unique model+region combinations across %d regions",
-                len(all_models), len(regions))
-    return all_models
+    Some models (older Anthropic) have input pricing in AmazonBedrock
+    but output pricing only in AmazonBedrockService.
+
+    Returns {"input_cost": float|None, "output_cost": float|None}.
+    """
+    pricing_client = boto3.client("pricing", region_name=PRICING_CLIENT_REGION)
+
+    try:
+        products = get_all_products(pricing_client, "AmazonBedrockService")
+    except Exception as exc:
+        logger.warning("Failed to query AmazonBedrockService for tier 2: %s", exc)
+        return {"input_cost": None, "output_cost": None}
+
+    return _extract_costs_from_products(products, model_id, region)
 
 
 # ---------------------------------------------------------------------------
@@ -366,7 +433,7 @@ def _discover_all_models() -> list[tuple[str, str]]:
 def _fetch_url(url: str, timeout: int = 15) -> bytes:
     """Fetch a URL and return raw bytes. Handles gzip encoding."""
     req = urllib.request.Request(url, headers={
-        "User-Agent": "ISVBedrockObservability/1.0",
+        "User-Agent": "BedrockBenchmark/1.0",
         "Accept-Encoding": "gzip, deflate",
     })
     with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -445,20 +512,17 @@ def _parse_pricing_page(page_html: str) -> list[dict]:
 
 
 def _normalize_for_match(s: str) -> str:
-    """Normalize a model identifier for fuzzy matching.
-
-    Strips vendor prefix (everything before first dot), version suffixes,
-    and normalizes separators.
-    """
+    """Normalize a model identifier for fuzzy matching."""
     s = s.lower()
-    # Strip vendor prefix (everything before first dot, e.g. "anthropic.", "us.")
-    if "." in s:
-        s = s[s.index(".") + 1:]
-    # Remove version suffixes like -20240307-v1:0, -v1:0
+    for prefix in ("anthropic.", "meta.", "amazon.", "cohere.", "ai21.",
+                    "mistral.", "stability.", "deepseek.", "us.", "eu.",
+                    "qwen.", "moonshot.", "openai."):
+        if s.startswith(prefix):
+            s = s[len(prefix):]
+            break
     s = re.sub(r"-\d{8}-v\d+:\d+$", "", s)
     s = re.sub(r"-v\d+:\d+$", "", s)
     s = re.sub(r"-v\d+$", "", s)
-    # Normalize separators
     s = re.sub(r"[-._:]+", " ", s)
     s = re.sub(r"\s+", " ", s).strip()
     return s
@@ -479,6 +543,8 @@ def _find_model_entry(model_id: str, entries: list[dict]) -> Optional[dict]:
         if norm_id == norm_name:
             return entry
 
+        # Substring match: require both sides to be at least 6 chars to avoid
+        # false positives like "text" matching "titan embed text"
         if len(norm_id_nospaces) >= 6 and len(norm_name_nospaces) >= 6:
             if norm_id_nospaces in norm_name_nospaces or norm_name_nospaces in norm_id_nospaces:
                 score = len(norm_name_nospaces)
@@ -489,9 +555,12 @@ def _find_model_entry(model_id: str, entries: list[dict]) -> Optional[dict]:
 
         id_tokens = set(norm_id.split())
         name_tokens = set(norm_name.split())
+        # Exclude pure numeric tokens from matching (e.g., "1", "2") to avoid
+        # false positives like "pegasus 1 2" matching "claude 2 1"
         id_meaningful = {t for t in id_tokens if not t.isdigit()}
         name_meaningful = {t for t in name_tokens if not t.isdigit()}
         overlap = len(id_meaningful & name_meaningful)
+        # Require at least 2 meaningful token matches AND >50% overlap
         min_tokens = min(len(id_meaningful), len(name_meaningful))
         if overlap >= 2 and min_tokens > 0 and overlap / min_tokens > 0.5 and overlap > best_score:
             best_score = overlap
@@ -519,12 +588,22 @@ def _fetch_bulk_json(service_path: str) -> Optional[dict]:
 def _resolve_single_from_webpage(
     model_id: str, region: str, entries: list[dict], bulk_cache: dict
 ) -> dict:
-    """Resolve pricing for a single model from pre-fetched webpage data."""
+    """Resolve pricing for a single model from pre-fetched webpage data.
+
+    Args:
+        model_id: Stripped model ID.
+        region: AWS region.
+        entries: Parsed pricing page entries (from _parse_pricing_page).
+        bulk_cache: Dict to cache bulk JSON data by service_path (shared across calls).
+
+    Returns {"input_cost": float|None, "output_cost": float|None}.
+    """
     if not entries:
         return {"input_cost": None, "output_cost": None}
 
     matched = _find_model_entry(model_id, entries)
     if not matched:
+        logger.info("Tier 3: No matching model found for %s", model_id)
         return {"input_cost": None, "output_cost": None}
 
     logger.info(
@@ -532,6 +611,7 @@ def _resolve_single_from_webpage(
         model_id, matched["model_name"], matched["service_path"],
     )
 
+    # Use cached bulk JSON or fetch it
     sp = matched["service_path"]
     if sp not in bulk_cache:
         bulk_cache[sp] = _fetch_bulk_json(sp)
@@ -547,6 +627,7 @@ def _resolve_single_from_webpage(
 
     region_prices = bulk_data.get("regions", {}).get(region_name, {})
     if not region_prices:
+        logger.info("Tier 3: No pricing data for region %s", region_name)
         return {"input_cost": None, "output_cost": None}
 
     input_entry = region_prices.get(matched["input_hash"], {})
@@ -555,21 +636,50 @@ def _resolve_single_from_webpage(
     input_raw = float(input_entry["price"]) if input_entry.get("price") else None
     output_raw = float(output_entry["price"]) if output_entry.get("price") else None
 
+    # Convert to per-1M-token format:
+    #   {priceOf!svc!hash!*!1000} -> raw is per 1K tokens, multiply by 1000
+    #   {priceOf!svc!hash}        -> raw is per 1M tokens, keep as-is
     input_cost = None
     output_cost = None
 
     if input_raw is not None:
         input_cost = round(input_raw * 1000 if matched["input_mult"] >= 1000 else input_raw, 2)
+
     if output_raw is not None:
         output_cost = round(output_raw * 1000 if matched["output_mult"] >= 1000 else output_raw, 2)
 
     return {"input_cost": input_cost, "output_cost": output_cost}
 
 
-def _scrape_webpage_pricing_bulk(
-    models_missing: list[tuple[str, str]]
-) -> dict[str, dict]:
-    """Tier 3 bulk: Scrape webpage once and resolve all missing models."""
+def _scrape_webpage_pricing(model_id: str, region: str) -> dict:
+    """Tier 3: Scrape AWS Bedrock pricing webpage for a single model.
+
+    Returns {"input_cost": float|None, "output_cost": float|None}.
+    Costs are returned in per-1M-token format.
+    """
+    try:
+        page_bytes = _fetch_url(_PRICING_PAGE_URL, timeout=20)
+        page_html = page_bytes.decode("utf-8", errors="replace")
+        entries = _parse_pricing_page(page_html)
+        bulk_cache = {}
+        return _resolve_single_from_webpage(model_id, region, entries, bulk_cache)
+    except Exception as exc:
+        logger.warning("Tier 3 webpage pricing scrape failed: %s", exc)
+        return {"input_cost": None, "output_cost": None}
+
+
+def _scrape_webpage_pricing_bulk(models: list[tuple[str, str]]) -> dict[str, dict]:
+    """Tier 3 bulk: Scrape webpage once and resolve all models.
+
+    Fetches the pricing page HTML once, parses it, then resolves all models
+    sharing the cached HTML and bulk JSON data.
+
+    Args:
+        models: List of (stripped_model_id, region) tuples.
+
+    Returns:
+        Dict keyed by "region#model_id" with {input_cost, output_cost} values.
+    """
     results = {}
 
     try:
@@ -579,19 +689,20 @@ def _scrape_webpage_pricing_bulk(
 
         if not entries:
             logger.warning("Tier 3 bulk: No model entries parsed from pricing page")
-            return {f"{reg}#{mid}": {"input_cost": None, "output_cost": None}
-                    for mid, reg in models_missing}
+            return {f"{reg}#{mid}": {"input_cost": None, "output_cost": None} for mid, reg in models}
 
         logger.info("Tier 3 bulk: Parsed %d entries from pricing page", len(entries))
 
-        bulk_cache: dict = {}
-        for model_id, region in models_missing:
+        # Shared cache for bulk JSON files (avoids re-fetching per service_path)
+        bulk_cache = {}
+
+        for model_id, region in models:
             key = f"{region}#{model_id}"
             results[key] = _resolve_single_from_webpage(model_id, region, entries, bulk_cache)
 
     except Exception as exc:
         logger.warning("Tier 3 bulk webpage scrape failed: %s", exc)
-        for model_id, region in models_missing:
+        for model_id, region in models:
             key = f"{region}#{model_id}"
             if key not in results:
                 results[key] = {"input_cost": None, "output_cost": None}
@@ -600,157 +711,65 @@ def _scrape_webpage_pricing_bulk(
 
 
 # ---------------------------------------------------------------------------
-# Bulk refresh: discover models, fetch pricing, cache everything
+# Single-model pricing resolver (3-tier fallback)
 # ---------------------------------------------------------------------------
 
-def refresh_all_pricing() -> dict:
-    """Discover ALL Bedrock models, fetch ALL pricing, cache to DynamoDB.
+def _get_model_pricing_from_api(model_id: str, region: str) -> dict:
+    """Get pricing for a model using 3-tier fallback.
 
-    Called at deploy time (seed script), weekly (EventBridge + Lambda),
-    or on-demand (POST /discovery/refresh-pricing).
-
-    Flow:
-        1. Discover all model IDs across all regions via list_foundation_models()
-        2. Fetch all products from all 3 Price List API service codes in parallel
-        3. Fuzzy-match each model against the products to extract pricing
-        4. Bulk-scrape the webpage for models still missing pricing
-        5. Batch-write everything to DynamoDB with 7-day TTL
-
-    Returns:
-        Summary dict with counts and status.
-    """
-    logger.info("=== Starting bulk pricing refresh ===")
-
-    # --- Step 1: Discover all models ---
-    model_region_pairs = _discover_all_models()
-    if not model_region_pairs:
-        return {"status": "error", "error": "No models discovered", "total": 0}
-
-    # --- Step 2+3: Fetch all products, fuzzy-match all models ---
-    logger.info("Tier 1: Fetching all products from Price List API (parallel)...")
-    try:
-        all_products = _fetch_all_products_parallel()
-        api_results = _resolve_bulk_from_products(all_products, model_region_pairs)
-    except Exception as exc:
-        logger.error("Bulk API fetch failed: %s", exc)
-        return {"status": "error", "error": str(exc), "total": len(model_region_pairs)}
-
-    api_resolved = sum(
-        1 for v in api_results.values()
-        if v["input_cost"] is not None and v["output_cost"] is not None
-    )
-    logger.info("Tier 1: Resolved %d / %d from API", api_resolved, len(model_region_pairs))
-
-    # --- Step 4: Webpage bulk scrape for incomplete entries ---
-    missing = [
-        (mid, reg) for mid, reg in model_region_pairs
-        if api_results.get(f"{reg}#{mid}", {}).get("input_cost") is None
-        or api_results.get(f"{reg}#{mid}", {}).get("output_cost") is None
-    ]
-
-    webpage_filled = 0
-    if missing:
-        logger.info("Tier 3: Scraping webpage for %d models with incomplete pricing...", len(missing))
-        tier3_results = _scrape_webpage_pricing_bulk(missing)
-
-        for model_id, region in missing:
-            key = f"{region}#{model_id}"
-            api_r = api_results.get(key, {"input_cost": None, "output_cost": None})
-            tier3 = tier3_results.get(key, {"input_cost": None, "output_cost": None})
-
-            filled = False
-            if api_r["input_cost"] is None and tier3["input_cost"] is not None:
-                api_r["input_cost"] = tier3["input_cost"]
-                filled = True
-            if api_r["output_cost"] is None and tier3["output_cost"] is not None:
-                api_r["output_cost"] = tier3["output_cost"]
-                filled = True
-            if filled:
-                webpage_filled += 1
-            api_results[key] = api_r
-
-    # --- Step 5: Batch-write to DynamoDB ---
-    missing_set = {f"{reg}#{mid}" for mid, reg in missing}
-    written = 0
-    table_name = os.environ.get("PRICING_CACHE_TABLE", "")
-    if table_name:
-        try:
-            table = _get_pricing_table()
-            now = time.time()
-            with table.batch_writer() as batch:
-                for cache_key, costs in api_results.items():
-                    if costs["input_cost"] is None and costs["output_cost"] is None:
-                        continue
-                    region_part, model_part = cache_key.split("#", 1)
-                    source = "webpage" if cache_key in missing_set else "api"
-
-                    batch.put_item(Item={
-                        "region#model_id": cache_key,
-                        "model_id": model_part,
-                        "region": region_part,
-                        "input_cost": Decimal(str(costs["input_cost"])) if costs["input_cost"] is not None else Decimal("0"),
-                        "output_cost": Decimal(str(costs["output_cost"])) if costs["output_cost"] is not None else Decimal("0"),
-                        "pricing_source": source,
-                        "cached_at": Decimal(str(now)),
-                        "ttl": int(now) + CACHE_TTL_SECONDS,
-                    })
-                    written += 1
-            logger.info("Batch-cached %d pricing entries to DynamoDB", written)
-        except Exception as exc:
-            logger.error("Failed to batch-cache pricing: %s", exc)
-            return {
-                "status": "partial_error",
-                "error": f"DynamoDB write failed: {exc}",
-                "total": len(model_region_pairs),
-                "api_resolved": api_resolved,
-                "webpage_filled": webpage_filled,
-                "written": 0,
-            }
-
-    summary = {
-        "status": "success",
-        "total": len(model_region_pairs),
-        "api_resolved": api_resolved,
-        "webpage_filled": webpage_filled,
-        "written": written,
-        "still_missing": len(model_region_pairs) - written,
-    }
-    logger.info("=== Pricing refresh complete: %s ===", summary)
-    return summary
-
-
-# ---------------------------------------------------------------------------
-# Main entry point: pure DynamoDB lookup
-# ---------------------------------------------------------------------------
-
-def get_model_pricing(model_id: str, region: str) -> dict:
-    """Look up pricing for a model from DynamoDB cache.
-
-    Pure cache read — no API calls. If pricing is not cached, returns
-    pricing_source="unavailable". Use refresh_all_pricing() to populate.
+    Args:
+        model_id: Bedrock model ID without 'bedrock/' prefix
+                  (e.g., 'anthropic.claude-sonnet-4-5-20250929-v1:0')
+        region: AWS region (e.g., 'us-west-2')
 
     Returns:
         dict with keys: input_cost, output_cost, pricing_source
+        Costs are per 1M tokens.
     """
-    cache_key = f"{region}#{model_id}"
+    # Tier 1: Query Price List API (all 3 service codes)
+    result = _query_price_list_api(model_id, region)
 
-    table_name = os.environ.get("PRICING_CACHE_TABLE", "")
-    if not table_name:
-        return {"input_cost": None, "output_cost": None, "pricing_source": "unavailable"}
+    if result["input_cost"] is not None and result["output_cost"] is not None:
+        return {
+            "input_cost": result["input_cost"],
+            "output_cost": result["output_cost"],
+            "pricing_source": "api",
+        }
 
-    try:
-        table = _get_pricing_table()
-        cached = get_cached_pricing(table, cache_key)
-        if cached:
+    # Tier 2: Re-query AmazonBedrockService for missing pricing
+    if result["input_cost"] is not None or result["output_cost"] is not None:
+        tier2 = _query_bedrock_service_only(model_id, region)
+        if result["input_cost"] is None and tier2["input_cost"] is not None:
+            result["input_cost"] = tier2["input_cost"]
+        if result["output_cost"] is None and tier2["output_cost"] is not None:
+            result["output_cost"] = tier2["output_cost"]
+
+        if result["input_cost"] is not None and result["output_cost"] is not None:
             return {
-                "input_cost": cached["input_cost"],
-                "output_cost": cached["output_cost"],
-                "pricing_source": cached.get("pricing_source", "cached"),
+                "input_cost": result["input_cost"],
+                "output_cost": result["output_cost"],
+                "pricing_source": "api_partial",
             }
-    except Exception as exc:
-        logger.warning("Cache lookup failed for %s: %s", cache_key, exc)
 
-    return {"input_cost": None, "output_cost": None, "pricing_source": "unavailable"}
+    # Tier 3: Scrape pricing from AWS webpage bulk JSON
+    tier3 = _scrape_webpage_pricing(model_id, region)
+    if result["input_cost"] is None and tier3["input_cost"] is not None:
+        result["input_cost"] = tier3["input_cost"]
+    if result["output_cost"] is None and tier3["output_cost"] is not None:
+        result["output_cost"] = tier3["output_cost"]
+
+    if result["input_cost"] is not None and result["output_cost"] is not None:
+        return {
+            "input_cost": result["input_cost"],
+            "output_cost": result["output_cost"],
+            "pricing_source": "webpage",
+        }
+
+    return {
+        "input_cost": result["input_cost"],
+        "output_cost": result["output_cost"],
+        "pricing_source": "unavailable",
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -807,3 +826,226 @@ def get_cached_pricing(table, cache_key: str) -> Optional[dict]:
         "cached_at": float(item.get("cached_at", 0)),
         "ttl": ttl,
     }
+
+
+# ---------------------------------------------------------------------------
+# Model discovery
+# ---------------------------------------------------------------------------
+
+def _discover_all_models() -> list[str]:
+    """Discover all Bedrock model IDs via list_foundation_models().
+
+    Returns a deduplicated list of model IDs (with vendor prefix,
+    e.g., 'anthropic.claude-sonnet-4-5-20250929-v1:0').
+    """
+    try:
+        client = boto3.client("bedrock", region_name="us-east-1")
+        resp = client.list_foundation_models()
+
+        model_ids = set()
+        for m in resp.get("modelSummaries", []):
+            model_id = m.get("modelId", "")
+            if model_id:
+                # Skip provisioned-only variants
+                if re.search(r":\d+k$", model_id) or re.search(r":mm$", model_id):
+                    continue
+                model_ids.add(model_id)
+
+        logger.info("Discovered %d unique Bedrock model IDs", len(model_ids))
+        return sorted(model_ids)
+
+    except Exception as exc:
+        logger.error("Failed to discover Bedrock models: %s", exc)
+        return []
+
+
+# ---------------------------------------------------------------------------
+# Bulk refresh: fetch pricing, cache everything to DynamoDB
+# ---------------------------------------------------------------------------
+
+def refresh_all_pricing() -> dict:
+    """Fetch ALL pricing from API + webpage and cache to DynamoDB.
+
+    1. Discover models via list_foundation_models()
+    2. Tier 1: Fetch all products from Price List API, match all models
+    3. Tier 3: Webpage fallback for models still missing pricing
+    4. Batch-write everything to DynamoDB with 7-day TTL
+
+    Called at deploy time (seed script), weekly (EventBridge + Lambda),
+    or on-demand (POST /discovery/refresh-pricing).
+
+    Returns:
+        Summary dict with counts and status.
+    """
+    logger.info("=== Starting bulk pricing refresh ===")
+
+    # --- Step 1: Discover all Bedrock models ---
+    model_ids = _discover_all_models()
+    if not model_ids:
+        return {"status": "error", "error": "No models discovered", "total": 0, "api_resolved": 0, "written": 0}
+
+    # --- Step 2: Tier 1 - Fetch all products and resolve pricing ---
+    try:
+        all_products = _fetch_all_products_parallel()
+    except Exception as exc:
+        logger.error("Bulk API fetch failed: %s", exc)
+        return {"status": "error", "error": str(exc), "total": 0, "api_resolved": 0, "written": 0}
+
+    # Extract regions that actually have pricing data
+    product_regions = set()
+    for p in all_products:
+        rc = p.get("product", {}).get("attributes", {}).get("regionCode", "")
+        if rc:
+            product_regions.add(rc)
+
+    logger.info("Found pricing data in %d regions", len(product_regions))
+
+    # Build (model_id, region) pairs — strip for pricing lookup
+    model_region_pairs = []
+    key_map = {}  # maps "region#stripped_id" -> cache_key
+    for model_id in model_ids:
+        stripped_id = strip_model_id_for_pricing(model_id)
+        for region in product_regions:
+            bulk_key = f"{region}#{stripped_id}"
+            cache_k = f"{region}#{model_id}"
+            model_region_pairs.append((stripped_id, region))
+            key_map[bulk_key] = cache_k
+
+    logger.info("Resolving pricing for %d model+region combinations", len(model_region_pairs))
+
+    # Tier 1: Match all models against products
+    api_results = _resolve_bulk_from_products(all_products, model_region_pairs)
+
+    api_resolved = sum(
+        1 for v in api_results.values()
+        if v["input_cost"] is not None and v["output_cost"] is not None
+    )
+    logger.info("Tier 1: %d/%d fully resolved from API", api_resolved, len(model_region_pairs))
+
+    # --- Step 3: Tier 3 - Webpage fallback for missing models ---
+    missing = [
+        (mid, reg) for mid, reg in model_region_pairs
+        if api_results.get(f"{reg}#{mid}", {}).get("input_cost") is None
+        or api_results.get(f"{reg}#{mid}", {}).get("output_cost") is None
+    ]
+
+    if missing:
+        logger.info("Tier 3: Scraping webpage pricing for %d remaining model+region pairs...", len(missing))
+        tier3_results = _scrape_webpage_pricing_bulk(missing)
+
+        for stripped_id, region in missing:
+            bulk_key = f"{region}#{stripped_id}"
+            api_r = api_results.get(bulk_key, {"input_cost": None, "output_cost": None})
+            tier3 = tier3_results.get(bulk_key, {"input_cost": None, "output_cost": None})
+
+            if api_r["input_cost"] is None and tier3["input_cost"] is not None:
+                api_r["input_cost"] = tier3["input_cost"]
+            if api_r["output_cost"] is None and tier3["output_cost"] is not None:
+                api_r["output_cost"] = tier3["output_cost"]
+            api_results[bulk_key] = api_r
+
+    total_resolved = sum(
+        1 for v in api_results.values()
+        if v["input_cost"] is not None and v["output_cost"] is not None
+    )
+    logger.info("After webpage merge: %d/%d fully resolved", total_resolved, len(model_region_pairs))
+
+    # --- Step 4: Batch-write to DynamoDB ---
+    written = 0
+    table_name = os.environ.get("PRICING_CACHE_TABLE", "")
+    if table_name:
+        try:
+            table = _get_pricing_table()
+            now = time.time()
+            with table.batch_writer() as batch:
+                for bulk_key, costs in api_results.items():
+                    if costs["input_cost"] is None and costs["output_cost"] is None:
+                        continue
+
+                    cache_k = key_map.get(bulk_key, bulk_key)
+                    region_part, model_id_part = cache_k.split("#", 1)
+
+                    batch.put_item(Item={
+                        "region#model_id": cache_k,
+                        "model_id": model_id_part,
+                        "region": region_part,
+                        "input_cost": Decimal(str(costs["input_cost"])) if costs["input_cost"] is not None else Decimal("0"),
+                        "output_cost": Decimal(str(costs["output_cost"])) if costs["output_cost"] is not None else Decimal("0"),
+                        "pricing_source": "api",
+                        "cached_at": Decimal(str(now)),
+                        "ttl": int(now) + CACHE_TTL_SECONDS,
+                    })
+                    written += 1
+
+            logger.info("Batch-cached %d pricing entries to DynamoDB", written)
+        except Exception as exc:
+            logger.error("Failed to batch-cache pricing: %s", exc)
+            return {
+                "status": "partial_error",
+                "error": f"DynamoDB write failed: {exc}",
+                "total": len(api_results),
+                "api_resolved": api_resolved,
+                "written": 0,
+            }
+
+    summary = {
+        "status": "success",
+        "total": len(api_results),
+        "api_resolved": total_resolved,
+        "written": written,
+    }
+    logger.info("=== Pricing refresh complete: %s ===", summary)
+    return summary
+
+
+# ---------------------------------------------------------------------------
+# Main entry point: DynamoDB lookup with API fallback
+# ---------------------------------------------------------------------------
+
+def get_model_pricing(model_id: str, region: str) -> dict:
+    """Get pricing for a model. Checks DynamoDB cache first, falls back to API.
+
+    Args:
+        model_id: Bedrock model ID (e.g., 'anthropic.claude-sonnet-4-5-20250929-v1:0')
+        region: AWS region (e.g., 'us-west-2')
+
+    Returns:
+        dict with keys: input_cost, output_cost, pricing_source
+        Costs are per 1M tokens.
+    """
+    cache_key = f"{region}#{model_id}"
+
+    # Try DynamoDB cache first
+    table_name = os.environ.get("PRICING_CACHE_TABLE", "")
+    if table_name:
+        try:
+            table = _get_pricing_table()
+            cached = get_cached_pricing(table, cache_key)
+            if cached:
+                return {
+                    "input_cost": cached["input_cost"],
+                    "output_cost": cached["output_cost"],
+                    "pricing_source": cached.get("pricing_source", "cached"),
+                }
+        except Exception as exc:
+            logger.warning("Cache lookup failed for %s: %s", cache_key, exc)
+
+    # Cache miss — run 3-tier fallback
+    stripped_id = strip_model_id_for_pricing(model_id)
+    result = _get_model_pricing_from_api(stripped_id, region)
+
+    # Cache the result for future lookups
+    if table_name and result["pricing_source"] != "unavailable":
+        try:
+            table = _get_pricing_table()
+            cache_pricing(table, cache_key, {
+                "model_id": model_id,
+                "region": region,
+                "input_cost": result["input_cost"],
+                "output_cost": result["output_cost"],
+                "pricing_source": result["pricing_source"],
+            })
+        except Exception as exc:
+            logger.warning("Failed to cache pricing for %s: %s", cache_key, exc)
+
+    return result
